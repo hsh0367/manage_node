@@ -5,7 +5,7 @@ const global_value = require('../global_value.js')
 
 let realm = new Realm({
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST],
-  schemaVersion: 18
+  schemaVersion: 19
 });
 
 process.on('message', (value) => {
@@ -40,7 +40,7 @@ function command_classifier(data) {
 function area_no_check(msisdn) { // return area_no
 
 
-  for (var i = 8; i >= 0; i--) {
+  for (var i = 8; i > 0; i--) {
     try {
       area_no = parseInt(msisdn.slice(0, i))
     }
@@ -52,11 +52,14 @@ function area_no_check(msisdn) { // return area_no
       var area_check = 'area_no = ' + area_no + '';
       var area_checker = realm.objects('RATE').filtered(area_check);
       if (area_checker.length > 0) { //국가 넘버 찾을경우
-        return area_checker.area_no;
+        return area_checker[0].area_no;
         break;
       }
       else { //국가 넘버 못찾을경우
-        console.log("no check area_no : " + i);
+        console.log("no check area_no : " + area_no);
+      }
+      if (i == 1) {
+        return 0
       }
     }
     catch (e) {
@@ -72,8 +75,10 @@ function is_local_check(outbound) {
   var outbound_1 = outbound.slice(0, 1)
   if (outbound_1 == '0') {
     // is local
+    var country_number = global_value.country_code;
 
-    return true;
+    return country_number + outbound.slice(1, -1)
+
   }
   else {
     country = outbound.slice(0, 2)
@@ -81,12 +86,13 @@ function is_local_check(outbound) {
 
     if (global_value.country_code == parseInt(country)) {
       // is local
-      return true;
+      return outbound;
 
     }
     else {
       // is sip
-      return false;
+
+      return 0
     }
   }
 }
@@ -112,14 +118,15 @@ function call_out(dictdata) {
   var outbound = command_line['data6'];
 
 
+  var now = Date.now() / 1000;
 
   // 유저 체크
   try {
     var user_check = 'user_id = "' + user_id + '" AND user_sim_imsi = "' + sim_imsi + '"';
-    var user_sim_check = 'user_id = "' + user_id + '" AND imsi = "' + sim_imsi + '"AND expire_match_date >';
+    var user_sim_check = 'user_id = "' + user_id + '" AND imsi = "' + sim_imsi + '" AND expire_match_date > ' + now;
 
     let user_checker = realm.objects('USER').filtered(user_check);
-    let user_sim_checker = realm.objects('USER').filtered(user_sim_check);
+    let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
 
 
 
@@ -134,119 +141,126 @@ function call_out(dictdata) {
 
     if (check_outbound != NaN) { // is number
 
+      var outbound_n = is_local_check(check_outbound.toString())
+      if (outbound_n != 0) { // is local
 
-      if (is_local_check(check_outbound.toString())) { // is local
 
-
-        var out_sim_area_no = area_no_check(check_outbound)
+        var out_sim_area_no = area_no_check(outbound_n)
         var rate_check = 'area_no = ' + out_sim_area_no + '';
         var rate_checker = realm.objects('RATE').filtered(rate_check);
 
         if (user_checker.length > 0 && user_sim_check.length > 0) { // 유저가 존재하고 심이 있을경우
           var user_credit = user_checker[0].credit;
-          var call_value = rate_checker[0].call_value;
+          var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
 
           if (user_checker[0].credit > rate_checker[0].call_value) { // 1분동안 통화를 가능할 크래딧일 경우
 
-            var available_time = 0.00;
-            available_time_m = user_credit / call_value
-            available_time_s = available_time_m.toFiced(2) * 60;
+            var available_time_m = 0.00;
+            available_time_m = (user_credit / call_value).toFixed(2)
+            var available_time_s = parseInt((available_time_m * 60).toFixed(0));
 
+            var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + rate_checker[0].call_unit + "|" + call_value + "|" + available_time_s + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + reference_number + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|0|" + user_checker[0].app_type + "|error|" + rate_checker[0].area_name + "|0|"
 
-
-            var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|"
-            rate_checker[0].call_unit "|" + rate_checker[0].call_value + "|" + available_time_s + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisn + "|" + reference_number + "|" + user_sim_checker[0].simbank_id + "|" +
-              user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|1|" + user_checker[0].app_type + "|0|" + rate_checker[0].area_name + "|0|"
+            process.send(msg);
+            console.log(msg);
           }
           else {
             //사용가능한 크래딧이 없는 경우
 
-            var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|"
-            rate_checker[0].call_unit "|" + rate_checker[0].call_value + "|" + 0 + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisn + "|reference_number|" + user_sim_checker[0].simbank_id + "|" +
-              user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|1|" + user_checker[0].app_type + "|error|" + rate_checker[0].area_name + "|0|"
+            var msg = "CALL|CALLOUT2|" + seq + "|" + tcp_id + "|" + user_id + "|" + rate_checker[0].call_unit + "|" + call_value + "|" + 0 + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + reference_number + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|0|" + user_checker[0].app_type + "|error|" + rate_checker[0].area_name + "|0|"
 
-
+            process.send(msg);
+            console.log(msg);
           }
 
         }
         else { // 유저와심이 없을 경우 sip
           //OUT - CALL|CALLOUT|SEQ|tcp_id|id|unit|value|droptime|imei|tmsi|kc|cksn|msisdn|reference_number|simbank_id|
           //sim_serial_no|simbank_name|isSip|join_app_type|error|area_name|과금방식|isSIP 0- 심 발신 / 1 - sip로 발신
+          var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
 
-          var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|0|" +
-            rate_checker.call_unit "|" + rate_checker.call_value +
+          var msg = "CALL|CALLOUT3|" + seq + "|" + tcp_id + "|0|" +
+            rate_checker.call_unit + "|" + call_value +
             "|0|0|0|0|0|0|" + reference_number + "|0|" +
             "0|0|1|0|error|" + rate_checker.area_name + "|0|"
-
+          process.send(msg);
+          console.log(msg);
         }
       }
       else { // 로컬 번호가 아닌경우 is sip
-
-
-
-        if (user_checker.length > 0 && user_sim_check.length > 0) { // 유저가 존재하고 심이 있을경우
-          var user_credit = user_checker[0].credit;
-          var call_value = rate_checker[0].call_value;
-
-          if (user_checker[0].credit > rate_checker[0].call_value) { // 1분동안 통화를 가능할 크래딧일 경우
-
-            var available_time_m = 0.00;
-            available_time_m = (user_credit / call_value).toFiced(0)
-
-
-
-            available_time_s = available_time_m * 60;
-
-
-
-            var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + rate_checker[0].call_unit "|" + rate_checker[0].call_value + "|" + available_time_s + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisn + "|" + reference_number + "|" + user_sim_checker[0].simbank_id + "|" +
-              user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|1|" + user_checker[0].app_type + "|error|" + rate_checker[0].area_name + "|0|"
-          }
-          else {
-            //사용가능한 크래딧이 없는 경우
-
-            var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + rate_checker[0].call_unit "|" + rate_checker[0].call_value + "|" + 0 + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisn + "|" + reference_number + "|" + user_sim_checker[0].simbank_id + "|" +
-              user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|1|" + user_checker[0].app_type + "|error|" + rate_checker[0].area_name + "|0|"
-
-          }
-
-
-
+        var area_no = area_no_check(outbound);
+        if (area_no == 0) {
+          console.log("error is not country_code")
         }
-        else { //유저와 심이 존재 하지 않을 경우
+        else {
 
-          var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|0|" +
-            rate_checker.call_unit "|" + rate_checker.call_value +
+
+          var rate_check = 'area_no = ' + area_no + '';
+          var rate_checker = realm.objects('RATE').filtered(rate_check);
+
+
+          var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
+          var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
+
+          var msg = "CALL|CALLOUT6|" + seq + "|" + tcp_id + "|0|" +
+            rate_checker[0].call_unit + "|" + call_value +
             "|0|0|0|0|0|0|" + reference_number + "|0|" +
-            "0|0|1|0|error|" + rate_checker.area_name + "|0|"
+            "0|0|1|0|error|" + rate_checker[0].area_name + "|0|"
+          process.send(msg);
+          console.log(msg);
+
+          // if (user_checker.length > 0 && user_sim_check.length > 0) { // 유저가 존재하고 심이 있을경우
+          //
+          //   var user_credit = user_checker[0].credit;
+          //   var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
+          //   if (user_checker[0].credit > rate_checker[0].call_value) { // 1분동안 통화를 가능할 크래딧일 경우
+          //
+          //     var available_time_m = 0.00;
+          //     available_time_m = (user_credit / call_value).toFixed(2)
+          //     available_time_s = available_time_m * 60;
+          //
+          //
+          //
+          //     var msg = "CALL|CALLOUT4|" + seq + "|" + tcp_id + "|" + user_id + "|" + rate_checker[0].call_unit + "|" + call_value + "|" + available_time_s + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + reference_number + "|" + user_sim_checker[0].sim_id + "|" +
+          //       user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|1|" + user_checker[0].app_type + "|error|" + rate_checker[0].area_name + "|0|"
+          //     process.send(msg);
+          //     console.log(msg);
+          //   }
+          //   else {
+          //     //사용가능한 크래딧이 없는 경우
+          //
+          //     var msg = "CALL|CALLOUT5|" + seq + "|" + tcp_id + "|" + user_id + "|" + rate_checker[0].call_unit + "|" + call_value + "|" + 0 + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + reference_number + "|" + user_sim_checker[0].sim_id + "|" +
+          //       user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|1|" + user_checker[0].app_type + "|error|" + rate_checker[0].area_name + "|0|"
+          //     process.send(msg);
+          //     console.log(msg);
+          //   }
+          //
+          //
+          //
+          // }
+          // else { //유저와 심이 존재 하지 않을 경우
+          //   var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
+          //
+          //   var msg = "CALL|CALLOUT6|" + seq + "|" + tcp_id + "|0|" +
+          //     rate_checker.call_unit + "|" + call_value +
+          //     "|0|0|0|0|0|0|" + reference_number + "|0|" +
+          //     "0|0|1|0|error|" + rate_checker.area_name + "|0|"
+          //   process.send(msg);
+          //   console.log(msg);
+          // }
+          //
+
         }
-
-
-
       }
-
     }
     else {
       //ERR is outbound not found
       console.log("ERR is outbound not found");
     }
-
-
-
-
-
-
-
-
-
   }
   catch (e) {
     console.log(e);
   }
-
-
-
-
 }
 
 function call_in(dictdata) {

@@ -12,7 +12,7 @@ addon.setCallback(5555, data_test);
 var simlist = [];
 let realm = new Realm({
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST],
-  schemaVersion: 18
+  schemaVersion: 19
 });
 
 DbJobQueue.process(function(job, done) {
@@ -161,7 +161,7 @@ function DB_synchronization(dictdata) {
               mobileType: result[i].mobileType,
               msisdn: result[i].sim_no,
               imei: result[i].imei,
-              sim_expire_date: result[i].sim_expire_date.getTime() / 1000,
+              sim_expire_date: result[i].sim_expire_date.getTime(),
 
             });
           });
@@ -175,7 +175,7 @@ function DB_synchronization(dictdata) {
 
 
   }
-  if (chosechema == 'USER') {
+  else if (chosechema == 'USER') {
 
     var sql = "SELECT id, pid FROM tb_user_test;";
     //sql SELECT pid, id,  sim_serial_no, imsi, simbank_name FORM tb_sim_list
@@ -205,7 +205,7 @@ function DB_synchronization(dictdata) {
     });
     console.log("DB_synchronization end");
   }
-  if (chosechema = 'RATE') {
+  else if (chosechema == 'RATE') {
     var sql = "SELECT area_name, area_no, unit, value, pid FROM tb_rate;";
 
     connection.query(sql, function(err, result, fields) {
@@ -217,18 +217,17 @@ function DB_synchronization(dictdata) {
 
       let rate_length = realm.objects('RATE').length;
 
-      for (var i =  0; i < result.length; i++) {
+      for (var i = 0; i < result.length; i++) {
         var rate_check = 'id =  \"' + result[i].pid + '\"';
         let rate_checker = realm.objects('RATE').filtered(rate_check);
-
-        console.log("rate "+i)
+        console.log("rate " + i + "  : " + parseFloat(result[i].value.toFixed(3)))
         if (rate_checker.length == 0) {
           realm.write(() => {
             let rate = realm.create('RATE', {
               id: result[i].pid,
               area_no: result[i].area_no,
               area_name: result[i].area_name,
-              call_value: result[i].value,
+              call_value: parseFloat(result[i].value.toFixed(3)),
               call_unit: result[i].unit,
             });
 

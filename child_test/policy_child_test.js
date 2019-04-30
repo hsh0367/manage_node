@@ -7,7 +7,7 @@ var addon_child = require('bindings')('addon_child');
 addon_child.setConnect(5555, "127.0.0.1");
 let realm = new Realm({
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST],
-  schemaVersion: 18
+  schemaVersion: 19
 });
 
 process.on('message', (value) => {
@@ -76,6 +76,8 @@ function table_view(dictdata) {
   // console.log("USER RESULT",realm.objects('USER'));
   var command_line = dictdata;
   var chosechema = command_line['data2'];
+  var content = command_line['data3'];
+
   if (chosechema == 'USER') {
     console.log("USER RESULT");
     console.log(realm.objects('USER').length);
@@ -103,14 +105,15 @@ function table_view(dictdata) {
     }
   }
   else if (chosechema == 'RATE') {
+    var rate_check = 'area_no = '+ parseInt(content)+'';
 
-    let rate_checker = realm.objects('RATE');
+    let rate_checker = realm.objects('RATE').filtered(rate_check)
     if (rate_checker.length > 0) {
 
       console.log(rate_checker.length)
-      // for(var i =0;rate_checker.length > i; i++ ){
-      //   console.log(rate_checker[i])
-      // }
+      for(var i =0;rate_checker.length > i; i++ ){
+        console.log(rate_checker[i])
+      }
     }
     else {
       console.log("RATE가 없습니다.")
@@ -554,7 +557,7 @@ function buy_sim(dicdata) {
       else {
         console.log("크래딧이 부족합니다. ")
         var msg = "Policy|CS2|Seq|not enough credit|-101|";
-        process.send(msg);
+        process.send(msg,);
 
       }
     }
