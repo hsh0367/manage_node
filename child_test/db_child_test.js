@@ -1,3 +1,4 @@
+console.log("[DB] ON")
 var Realm = require('realm');
 const crypto = require('crypto');
 const chema = require('../global.js')
@@ -12,7 +13,7 @@ addon.setCallback(5555, data_test);
 var simlist = [];
 let realm = new Realm({
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST],
-  schemaVersion: 19
+  schemaVersion: 20
 });
 
 DbJobQueue.process(function(job, done) {
@@ -131,10 +132,25 @@ function DB_classifier(data) {
       //call function
       sim_expire_date_update(data);
       break;
+    case 'SIM_CH': //realm mysql 데이터베이스 동기화
+      //call function
+      sim_info_change(data);
+      break;
     default:
       console.log(data);
   }
 }
+
+function sim_info_change(dictdata) {
+  var command_line = dictdata;
+  var imsi = command_line['data2'];
+  var imsi = command_line['data2'];
+
+
+
+
+}
+
 
 function DB_synchronization(dictdata) {
   var command_line = dictdata;
@@ -168,8 +184,8 @@ function DB_synchronization(dictdata) {
               msisdn: result[i].sim_no,
               imei: result[i].imei,
               sim_expire_date: sim_expire_date,
-              mcc : result[i].mcc,
-              mnc : result[i].mnc,
+              mcc: result[i].mcc,
+              mnc: result[i].mnc,
 
             });
           });
@@ -576,6 +592,7 @@ function call_drop(dictdata) {
   var area_name = command_line['data9'];
   var TYPE = command_line['data10'];
   var con_id = command_line['data11'];
+  var call_result = command_line['data11'];
 
 
   var use_time = e_date - c_date;
@@ -587,50 +604,67 @@ function call_drop(dictdata) {
 
   let user_checker = realm.objects('USER').filtered(user_check);
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+  // ERR-CON,ERR-USER
+  console.log(call_result)
+  if (call_result == "SUCCESS") {
 
-  try {
-    var p = new Promise(function(resolve, reject) {
-      resolve("Success!");
-      reject("Error!");
-    });
-
-
-    var content = "CALL"
-    var credit_flag = 104
-    var type = 0;// 가감 부분 0이면 - 이면 +
-    var db_user_msg = "UPDATE tb_user_test set credit = " + user_checker[0].credit + " WHERE pid  = " + user_checker[0].user_pid + "";
-    var db_credit_history_msg = "INSERT INTO tb_credit_history (id, user_serial, mobile_number, credit, type, content, user_credit, credit_flag, reg_date, description) VALUES ('" + user_checker[0].user_id + "','" + user_checker[0].user_serial + "','" + user_sim_checker[0].msisdn + "'," + deducted_credit * 10 + "," + type + ",'" + content + "'," + user_checker[0]*10 + "," + credit_flag + ",'" + reg_date + "','" + description + "')";
-    // var db_call_log_msg = "INSERT INTO tb_call_log (id, user_serial, con_id, mobile_number, s_date, c_date, e_date,use_time, total_time, prefix, area_name, simbank_name, sim_imsi, sim_no, isAppSend, credit_pid,join_app_type)"
-    //   +"VALUES ("+user_id+", "+user_serial+", con_id, "+mobile_number+", "+s_date+", "+c_date+", "+e_date+","+use_time+", "+total_time+", prefix, "+area_name+","
-    //   +""+simbank_name+", "+sim_imsi+", "+sim_no+", "+TYPE+", credit_pid,"+join_type+");"
-    var promis = new Promise(function(resolve, reject) {
-      resolve("Success!");
-      // 또는
-      reject("Error!");
-    });
-
-    promis.then(query_Launcher(db_user_msg)).then(function(db_credit_history_msg) {
-//////////////////////////////////////////////////////////////////////////////////////////////
-      connection.query(db_credit_history_msg, function(err, rows, fields) {
-        console.log(db_credit_history_msg);
-        var credit_pid = result.insertId;
-        var db_call_log_msg = "INSERT INTO tb_call_log (id, user_serial, con_id, mobile_number, s_date, c_date, e_date,use_time, total_time, area_name, simbank_name, sim_imsi, sim_no, isAppSend, credit_pid,join_app_type)" +
-          "VALUES ('" + user_id + "','" + user_serial + "', '" + con_id + "', '" + mobile_number + "', " + s_date + ", " + c_date + ", " + e_date + "," + use_time + ", " + total_time + ", '" + area_name + "','" +
-          "" + simbank_name + "', '" + sim_imsi + "', " + sim_serial_no + ", " + TYPE + ", " + credit_pid + "," + join_type + ");"
-        if (!err) {
-          console.log('The solution is: ', rows);
-          console.log("end")
-        }
-        else {
-          console.log(err);
-        }
+    try {
+      var p = new Promise(function(resolve, reject) {
+        resolve("Success!");
+        reject("Error!");
       });
 
-    }).then(query_Launcher(db_call_log_msg))
+
+      var content = "CALL"
+      var credit_flag = 104
+      var type = 0; // 가감 부분 0이면 - 이면 +
+      var db_user_msg = "UPDATE tb_user_test set credit = " + user_checker[0].credit + " WHERE pid  = " + user_checker[0].user_pid + "";
+      var db_credit_history_msg = "INSERT INTO tb_credit_history (id, user_serial, mobile_number, credit, type, content, user_credit, credit_flag, reg_date, description) VALUES ('" + user_checker[0].user_id + "','" + user_checker[0].user_serial + "','" + user_sim_checker[0].msisdn + "'," + deducted_credit * 10 + "," + type + ",'" + content + "'," + user_checker[0] * 10 + "," + credit_flag + ",'" + reg_date + "','" + description + "')";
+      // var db_call_log_msg = "INSERT INTO tb_call_log (id, user_serial, con_id, mobile_number, s_date, c_date, e_date,use_time, total_time, prefix, area_name, simbank_name, sim_imsi, sim_no, isAppSend, credit_pid,join_app_type)"
+      //   +"VALUES ("+user_id+", "+user_serial+", con_id, "+mobile_number+", "+s_date+", "+c_date+", "+e_date+","+use_time+", "+total_time+", prefix, "+area_name+","
+      //   +""+simbank_name+", "+sim_imsi+", "+sim_no+", "+TYPE+", credit_pid,"+join_type+");"
+      var promis = new Promise(function(resolve, reject) {
+        resolve("Success!");
+        // 또는
+        reject("Error!");
+      });
+
+      promis.then(query_Launcher(db_user_msg)).then(function(db_credit_history_msg) {
+        //////////////////////////////////////////////////////////////////////////////////////////////
+        connection.query(db_credit_history_msg, function(err, rows, fields) {
+          console.log(db_credit_history_msg);
+          var credit_pid = result.insertId;
+          var db_call_log_msg = "INSERT INTO tb_call_log (id, user_serial, con_id, mobile_number, s_date, c_date, e_date,use_time, total_time, area_name, simbank_name, sim_imsi, sim_no, isAppSend, credit_pid,join_app_type)" +
+            "VALUES ('" + user_id + "','" + user_serial + "', '" + con_id + "', '" + mobile_number + "', " + s_date + ", " + c_date + ", " + e_date + "," + use_time + ", " + total_time + ", '" + area_name + "','" +
+            "" + simbank_name + "', '" + sim_imsi + "', " + sim_serial_no + ", " + TYPE + ", " + credit_pid + "," + join_type + ");"
+          if (!err) {
+            console.log('The solution is: ', rows);
+            console.log("end")
+          }
+          else {
+            console.log(err);
+          }
+        });
+
+      }).then(query_Launcher(db_call_log_msg))
+    }
+    catch (e) {
+      console.log(e);
+      console.log("ERROR DB-BUY_SIM : not found sub_command");
+    }
   }
-  catch (e) {
-    console.log(e);
-    console.log("ERROR DB-BUY_SIM : not found sub_command");
+  else if (call_result == "ERR-CON") {
+    var db_call_log_msg = "INSERT INTO tb_call_log (id, user_serial, con_id, mobile_number, s_date, c_date, e_date,use_time, total_time, area_name, simbank_name, sim_imsi, sim_no, isAppSend, credit_pid,join_app_type)" +
+      "VALUES ('" + user_id + "','" + user_serial + "', '" + con_id + "', '" + mobile_number + "', " + s_date + ", " + c_date + ", " + e_date + "," + use_time + ", " + total_time + ", '" + area_name + "','" + + simbank_name + "', '" + sim_imsi + "', " + sim_serial_no + ", " + TYPE + ", " + credit_pid + "," + join_type + ");"
+      console.log(db_call_log_msg);
+
+    query_Launcher(db_call_log_msg);
+  }
+  else {
+    var db_call_log_msg = "INSERT INTO tb_call_log (id, user_serial, con_id, mobile_number, s_date, c_date, e_date,use_time, total_time, area_name, simbank_name, sim_imsi, sim_no, isAppSend, credit_pid,join_app_type)" +
+      "VALUES ('" + user_id + "','" + user_serial + "', '" + con_id + "', '" + mobile_number + "', " + s_date + ", " + c_date + ", " + e_date + "," + use_time + ", " + total_time + ", '" + area_name + "','" +
+      "" + simbank_name + "', '" + sim_imsi + "', " + sim_serial_no + ", " + TYPE + ", " + credit_pid + "," + join_type + ");"
+    query_Launcher(db_call_log_msg);
   }
 }
 

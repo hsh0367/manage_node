@@ -1,12 +1,15 @@
+console.log("[CALL] ON")
 var Realm = require('realm');
 // const chema = require('../realm_test.js')
 const chema = require('../global.js')
 const global_value = require('../global_value.js')
+var addon_child = require('bindings')('addon_child');
 
 let realm = new Realm({
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST],
-  schemaVersion: 19
+  schemaVersion: 20
 });
+
 
 process.on('message', (value) => {
   console.log("call is on");
@@ -132,7 +135,7 @@ function call_out(dictdata) {
   var outbound = command_line['data6'];
 
 
-  var now = Date.now() / 1000; //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
+  var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
 
   // 유저 체크
   try {
@@ -179,7 +182,7 @@ function call_out(dictdata) {
           else {
             //사용가능한 크래딧이 없는 경우
 
-            var msg = "CALL|CALLOUT2|" + seq + "|" + tcp_id + "|" + user_id + "|" + rate_checker[0].call_unit + "|" + call_value + "|" + 0 + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + reference_number + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|0|" + user_checker[0].app_type + "|error|" + rate_checker[0].area_name + "|0|"
+            var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + rate_checker[0].call_unit + "|" + call_value + "|" + 0 + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + reference_number + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|0|" + user_checker[0].app_type + "|error|" + rate_checker[0].area_name + "|0|"
 
             process.send(msg);
             console.log(msg);
@@ -194,7 +197,7 @@ function call_out(dictdata) {
           var rate_checker = realm.objects('RATE').filtered(rate_check);
           var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
 
-          var msg = "CALL|CALLOUT3|" + seq + "|" + tcp_id + "|0|" +
+          var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|0|" +
             rate_checker.call_unit + "|" + call_value +
             "|0|0|0|0|0|0|" + reference_number + "|0|" +
             "0|0|1|0|error|" + rate_checker.area_name + "|0|"
@@ -214,7 +217,7 @@ function call_out(dictdata) {
           var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
           var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
 
-          var msg = "CALL|CALLOUT6|" + seq + "|" + tcp_id + "|0|" +
+          var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|0|" +
             rate_checker[0].call_unit + "|" + call_value +
             "|0|0|0|0|0|0|" + reference_number + "|0|" +
             "0|0|1|0|error|" + rate_checker[0].area_name + "|0|"
@@ -243,7 +246,7 @@ function call_in(dictdata) {
   var seq = command_line['data2'];
   var sim_imsi = command_line['data3'];
 
-  var now = Date.now() / 1000; //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
+  var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
 
 
 
@@ -299,22 +302,30 @@ function call_drop(dictdata) {
   var outbound = command_line['data12'];
   var con_id = command_line['data13'];
 
-  var now = Date.now() / 1000; //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
-  var user_sim_check = 'imsi = "' + sim_imsi + '" AND expire_match_date > ' + now + '';
-  var user_check = 'user_sim_imsi = ".' + sim_imsi + '"';
+
+
+
+  var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
+  var user_sim_check = 'imsi = "' + sim_imsi + '" AND expire_match_date > ' + now;
+  var user_check = 'user_sim_imsi = "' + sim_imsi + '"';
 
 
   let user_checker = realm.objects('USER').filtered(user_check);
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
 
 
+  //
+  // console.log(realm.objects('USER'))
+  // console.log(realm.objects('SIM'))
+  // console.log(now)
+
   if (user_checker.length > 0 && user_sim_checker.length > 0) { //유저와 심이 있을경우
+    var description = outbound + " / " + user_sim_checker[0].msisdn;
 
     if (c_date != '0') { //전화 연결이 된경우
 
       var call_time = e_date - c_date;
       var deducted_credit = Math.round(call_time * (value / unit));
-      var description = outbound + " / " + user_sim_checker[0].msisdn;
 
 
       //크래딧  차감, 심과 사용자 매칭, tb_credit_history입력
@@ -331,21 +342,28 @@ function call_drop(dictdata) {
       //   user_checker[0].user_serial + "|" + user_sim_checker[0].msisdn + "|" + deducted_credit * 10 + "|0|CALL|" +
       //   user_checker[0].credit * 10 + "|104|" + timeConverter(now) + "|" + description + "|"+s_date+"|"+ c_date+"|"+ e_date+"|"+area_name+"|"+TYPE+"|"+user_checker[0].join_type+"|"+user_sim_checker[0].simbank_name+"|"+user_sim_checker[0].sim_serial_no+"|"+con_id+"|";
 
-      var call_drop_msg = "DB|D07|" + user_checker[0].user_serial + "|" + user_sim_checker[0].imsi + "|" + description + "|" + s_date + "|" + c_date + "|" + e_date + "|" +deducted_credit+"|"+ area_name + "|" + TYPE + "|" + con_id + "|";
-
-
+      var call_drop_msg = "DB|D07|" + user_checker[0].user_serial + "|" + user_sim_checker[0].imsi + "|" + description + "|" + s_date + "|" + c_date + "|" + e_date + "|" + deducted_credit + "|" + area_name + "|" + TYPE + "|" + con_id + "|SUCCESS|";
+      console.log(call_drop_msg);
       addon_child.send_data(call_drop_msg);
 
 
     }
     else { //전화 연결이 안된경우
       console.log("is not connected")
+
+      var call_drop_msg = "DB|D07|" + user_checker[0].user_serial + "|" + user_sim_checker[0].imsi + "|" + description + "|" + s_date + "|" + c_date + "|" + e_date + "|" + 0 + "|" + area_name + "|" + TYPE + "|" + con_id + "|ERR-CON|";
+      console.log(call_drop_msg);
+      addon_child.send_data(call_drop_msg);
+      //call log 쌓기
     }
 
   }
   else { //유저와 심이 없을 경우
     console.log("is not user or sim")
-
+    var call_drop_msg = "DB|D07|" + 0 + "|" + 0 + "|" + 0 + "|" + s_date + "|" + c_date + "|" + e_date + "|" + 0 + "|" + area_name + "|" + TYPE + "|" + con_id + "|ERR-USER|";
+    console.log(call_drop_msg);
+    addon_child.send_data(call_drop_msg);
+    //call log 쌓기
   }
 
 
