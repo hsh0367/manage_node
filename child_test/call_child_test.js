@@ -4,6 +4,7 @@ var Realm = require('realm');
 const chema = require('../global.js')
 const global_value = require('../global_value.js')
 var addon_child = require('bindings')('addon_child');
+addon_child.setConnect(5555, "127.0.0.1");
 
 let realm = new Realm({
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST],
@@ -41,11 +42,11 @@ function command_classifier(data) {
 }
 
 function area_no_check(msisdn) { // return area_no
-
-
+  var area_no = 0000;
+  var number = msisdn +"";
   for (var i = 8; i > 0; i--) {
     try {
-      area_no = parseInt(msisdn.slice(0, i))
+     area_no = parseInt(number.slice(0, i))
     }
     catch (e) {
       console.log(e);
@@ -132,7 +133,7 @@ function call_out(dictdata) {
   var sim_imsi = command_line['data3'];
   var tcp_id = command_line['data4'];
   var user_id = command_line['data5'];
-  var outbound = command_line['data6'];
+  var outbound = parseInt(command_line['data6']);
 
 
   var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
@@ -155,7 +156,7 @@ function call_out(dictdata) {
     }
 
     var check_outbound = filterInt(outbound)
-
+    console.log(check_outbound)
     if (check_outbound != NaN) { // is number
 
       var outbound_n = is_local_check(check_outbound.toString())
@@ -264,11 +265,11 @@ function call_in(dictdata) {
       let user_rate_checker = realm.objects('RATE').filtered(user_rate_check);
 
       var available_time_s = cal_drop_time(user_sim_checker[0].credit, user_rate_checker[0].call_unit, user_rate_checker[0].call_value);
-      var msg = command_line + "|" + sub_command + "|" + seq + "|" + user_checker[0].user_serial + "|" + user_checker[0].id + "|" + user_rate_checker[0].call_unit + "|" + user_rate_checker[0].call_value + "|" + available_time_s + "|" + user_checker[0].fcm_push_key + "|" + fcm_push_key.voip_push_key + "|" + user_checker[0].join_type + "|" + user_checker[0].app_type + "|"
+      var msg = command + "|" + sub_command + "|" + seq + "|" + user_checker[0].user_serial + "|" + user_checker[0].id + "|" + user_rate_checker[0].call_unit + "|" + user_rate_checker[0].call_value + "|" + available_time_s + "|" + user_checker[0].fcm_push_key + "|" +user_checker[0].voip_push_key + "|" + user_checker[0].join_type + "|" + user_checker[0].app_type + "|"
       process.send(msg);
     }
     else {
-      var msg = command_line + "|" + sub_command + "|" + seq + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|"
+      var msg = command + "|" + sub_command + "|" + seq + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|"
       process.send(msg);
     }
   }
