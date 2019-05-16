@@ -20,9 +20,9 @@ function data_test(msg) {
 
 function command_classifier(data) {
   switch (data['command']) {
-    case 'sms':
+    case 'SMS':
       console.log("send sms_child : ", data);
-      sms_worker_test.send({
+      sms_child_test.send({
         data: data
       });
       break;
@@ -88,11 +88,12 @@ dataQueue.process(function(job, done) {
 
 jobQueue.process(function(job, done) {
 
-  // console.log("jobQueue : ", job.data.msg);
+  console.log("jobQueue : ", job.data.msg);
   command_classifier(job.data.msg);
   done();
 });
 resultQueue.process(function(job, done) {
+
   addon.send_data(job.data.msg);
   done();
 });
@@ -108,6 +109,76 @@ const sms_child_test = cp.fork('./child_test/sms_child_test.js');
 const DB_test = cp.fork('./child_test/db_child_test.js');
 
 
+parsing_child_test.on('exit', code => {
+  console.log("exit")
+  console.log(`Exit code is: ${code}`);
+})
+parsing_child_test.on('error', (value) => {
+  console.log("error")
+  console.log(value)
+})
+
+
+call_child_test.on('exit', code => {
+  console.log("exit")
+  console.log(`Exit code is: ${code}`);
+})
+call_child_test.on('error', (value) => {
+  console.log("error")
+  console.log(value)
+})
+cnd_child_test.on('exit', (value) => {
+  console.log("exit")
+  console.log(`Exit code is: ${code}`);
+})
+etc_child_test.on('error', (value) => {
+  console.log("error")
+  console.log(value)
+})
+lur_child_test.on('exit', code  => {
+  console.log("exit")
+  console.log(`Exit code is: ${code}`);
+})
+lur_child_test.on('error', (value) => {
+  console.log("error")
+  console.log(value)
+})
+mp_child_test.on('exit', code  => {
+  console.log("exit")
+  console.log(`Exit code is: ${code}`);
+})
+mp_child_test.on('error', (value) => {
+  console.log("error")
+  console.log(value)
+})
+policy_child_test.on('exit', code  => {
+  console.log("exit")
+  console.log(`Exit code is: ${code}`);
+})
+policy_child_test.on('error', (value) => {
+  console.log("error")
+  console.log(value)
+})
+DB_test.on('exit', code  => {
+  console.log("exit")
+  console.log(`Exit code is: ${code}`);
+})
+DB_test.on('error', (value) => {
+  console.log("error")
+  console.log(value)
+})
+sms_child_test.on('exit', code  => {
+  console.log("exit")
+  console.log(`Exit code is: ${code}`);
+})
+sms_child_test.on('error', (value) => {
+  console.log("error")
+  console.log(value)
+})
+
+
+
+
 parsing_child_test.on('message', (value) => {
   job_que = value;
   console.log("recive job_que");
@@ -121,16 +192,46 @@ parsing_child_test.on('message', (value) => {
 policy_child_test.on('message', (value) => {
   //만약 DB CHILD에 넘겨줄 데이터일경우 처리
 
-  if (value.includes("db_child")) {
-    console.log("db_child : ", value)
-    db_child_test.send({
-      data: value
-    });
-  }
-  else {
-    console.log("send to");
-    resultQueue.add({
-      msg: value
-    });
-  }
+
+  console.log("send to policy");
+  resultQueue.add({
+    msg: value
+  });
+
+});
+call_child_test.on('message', (value) => {
+  //만약 DB CHILD에 넘겨줄 데이터일경우 처리
+
+  console.log("send to call");
+  resultQueue.add({
+    msg: value
+  });
+
+});
+lur_child_test.on('message', (value) => {
+  //만약 DB CHILD에 넘겨줄 데이터일경우 처리
+
+  console.log("send to lur");
+  resultQueue.add({
+    msg: value
+  });
+
+});
+
+sms_child_test.on('message', (value) => {
+  //만약 DB CHILD에 넘겨줄 데이터일경우 처리
+
+  console.log("send to sms");
+  resultQueue.add({
+    msg: value
+  });
+});
+mp_child_test.on('message', (value) => {
+  //만약 DB CHILD에 넘겨줄 데이터일경우 처리
+
+  console.log("send to sms");
+  resultQueue.add({
+    msg: value
+  });
+
 });
