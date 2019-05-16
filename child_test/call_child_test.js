@@ -156,6 +156,7 @@ function call_out(dictdata) {
   var outbound = command_line['data6'];
 
 
+
   var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
 
   var isSip = 0;
@@ -238,7 +239,7 @@ function call_out(dictdata) {
         var rate_checker = area_no_check(outbound)
         var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
 
-        if (user_checker.length > 0 && user_sim_checker.length > 0) {
+        if (user_checker.length > 0) {
           var user_credit = user_checker[0].credit;
           var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
           var call_unit = rate_checker[0].call_unit;
@@ -292,16 +293,18 @@ function call_in(dictdata) {
   if (user_sim_checker.length > 0 && user_checker.length > 0) {
     error = 0;
     var available_time_s = cal_drop_time(user_checker[0].credit, global_value.call_unit, global_value.call_value);
-    var msg = command + "|" + sub_command + "|" + seq + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + global_value.call_unit + "|" + global_value.call_value + "|" + available_time_s + "|"+error+"|"+ user_checker[0].fcm_push_key + "|" + user_checker[0].voip_push_key + "|" + user_checker[0].join_type + "|" + user_checker[0].app_type + "|";
+    var msg = command + "|" + sub_command + "|" + seq + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + global_value.call_unit + "|" + global_value.call_value + "|" + available_time_s + "|" + error + "|" + user_checker[0].fcm_push_key + "|" + user_checker[0].voip_push_key + "|" + user_checker[0].join_type + "|" + user_checker[0].app_type + "|";
     console.log(msg)
     process.send(msg);
   }
   else {
     error = 100;
-    var msg = command + "|" + sub_command + "|" + seq + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0+"|" + error+"|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|";
+    var msg = command + "|" + sub_command + "|" + seq + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + error + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|";
     console.log(msg)
     process.send(msg);
-  }}
+  }
+}
+
 function call_drop(dictdata) {
   //IN - CALL|CALLDROP|SEQ|TYPE|s_date|c_date|e_date|unit|value|area_name|과금방식|join_app_type|con_id|
   //TYPE-CALLOUT/CALLIN, s_date-전화시작 시간, c_date-연결한시간, e_date-종료시간
@@ -335,8 +338,9 @@ function call_drop(dictdata) {
   let user_checker = realm.objects('USER').filtered(user_check);
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
 
+  var content = 'CALL'
+  var type = 0;
 
-  //
   // console.log(realm.objects('USER'))
   // console.log(realm.objects('SIM'))
   // console.log(now)
@@ -349,22 +353,19 @@ function call_drop(dictdata) {
       var call_time = e_date - c_date;
       var deducted_credit = Math.round(call_time * (value / unit));
 
+      var credit_flag = 104;
+      var call_result = "SUCCESS";
+
 
       //크래딧  차감, 심과 사용자 매칭, tb_credit_history입력
       realm.write(() => {
         user_checker[0].credit = user_checker[0].credit - deducted_credit * 10; //크래딧 차감
       });
-      // if (TYPE == 'CALLOUT') {
-      //   TYPE = 1
-      // }
-      // else {
-      //   TYPE = 0
-      // }
-      // var call_drop_msg = "DB|D07|" + user_checker[0].credit + "|" + user_checker[0].user_pid + "|" + timeConverter(match_sim_checker[0].expire_match_date) + "|" + user_sim_checker[0].imsi + "|" + user_checker[0].user_id + "|" +
-      //   user_checker[0].user_serial + "|" + user_sim_checker[0].msisdn + "|" + deducted_credit * 10 + "|0|CALL|" +
-      //   user_checker[0].credit * 10 + "|104|" + timeConverter(now) + "|" + description + "|"+s_date+"|"+ c_date+"|"+ e_date+"|"+area_name+"|"+TYPE+"|"+user_checker[0].join_type+"|"+user_sim_checker[0].simbank_name+"|"+user_sim_checker[0].sim_serial_no+"|"+con_id+"|";
+      var call_drop_msg = "DB|D07|" + user_checker[0].user_pid + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + user_checker[0].user_credit + "|" +
+        user_sim_checker[0].imsi + "|" + outbound + "|" + user_sim_checker[0].simbank_name + "|" + user_sim_checker[0].sim_serial_no + "|" + description + "|" +
+        deducted_credit + "|" + credit_flag + "|" + area_name + "|" + content + "|" + type + "|" + TYPE + "|" + s_date + "|" + c_date + "|" + e_date + "|" + con_id + "|" + call_result + "|"
 
-      var call_drop_msg = "DB|D07|" + user_checker[0].user_serial + "|" + user_sim_checker[0].imsi + "|" + description + "|" + s_date + "|" + c_date + "|" + e_date + "|" + deducted_credit + "|" + area_name + "|" + TYPE + "|" + con_id + "|SUCCESS|";
+
       console.log(call_drop_msg);
       addon_child.send_data(call_drop_msg);
 
@@ -373,7 +374,15 @@ function call_drop(dictdata) {
     else { //전화 연결이 안된경우
       console.log("is not connected")
 
-      var call_drop_msg = "DB|D07|" + user_checker[0].user_serial + "|" + user_sim_checker[0].imsi + "|" + description + "|" + s_date + "|" + c_date + "|" + e_date + "|" + 0 + "|" + area_name + "|" + TYPE + "|" + con_id + "|ERR-CON|";
+      var credit_flag = 104;
+      var call_result = "ERR-CON";
+      var deducted_credit = 0
+
+      // var call_drop_msg = "DB|D07|" + user_checker[0].user_serial + "|" + user_sim_checker[0].imsi + "|" + description + "|" + s_date + "|" + c_date + "|" + e_date + "|" + 0 + "|" + area_name + "|" + TYPE + "|" + con_id + "|ERR-CON|";
+      var call_drop_msg = "DB|D07|" + user_checker[0].user_pid + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + user_checker[0].credit + "|" +
+        user_sim_checker[0].imsi + "|" + outbound + "|" + user_sim_checker[0].simbank_name + "|" + user_sim_checker[0].sim_serial_no + "|" + description + "|" +
+        deducted_credit + "|" + credit_flag + "|" + area_name + "|" + content + "|" + type + "|" + TYPE + "|" + s_date + "|" + c_date + "|" + e_date + "|" + con_id + "|" + call_result + "|"
+
       console.log(call_drop_msg);
       addon_child.send_data(call_drop_msg);
       //call log 쌓기
@@ -382,12 +391,44 @@ function call_drop(dictdata) {
   }
   else { //유저와 심이 없을 경우
     console.log("is not user or sim")
-    var call_drop_msg = "DB|D07|" + 0 + "|" + 0 + "|" + 0 + "|" + s_date + "|" + c_date + "|" + e_date + "|" + 0 + "|" + area_name + "|" + TYPE + "|" + con_id + "|ERR-USER|";
+
+    if (user_sim_checker.length > 0 && c_date != '0') { // 유저가 있을경우
+
+      var call_time = e_date - c_date;
+      var deducted_credit = Math.round(call_time * (value / unit));
+
+      var credit_flag = 104;
+      var call_result = "SUCCESS";
+
+
+      realm.write(() => {
+        user_checker[0].credit = user_checker[0].credit - deducted_credit * 10; //크래딧 차감
+      });
+
+
+
+      var call_drop_msg = "DB|D07|" + user_checker[0].user_pid + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + user_checker[0].credit + "|" +
+        0 + "|" + outbound + "|" + 0 + "|" + 0 + "|" + description + "|" +
+        deducted_credit + "|" + credit_flag + "|" + area_name + "|" + content + "|" + type + "|" + TYPE + "|" + s_date + "|" + c_date + "|" + e_date + "|" + con_id + "|" + call_result + "|"
+
+      // var call_drop_msg = "DB|D07|" + 0 + "|" + 0 + "|" + 0 + "|" + s_date + "|" + c_date + "|" + e_date + "|" + 0 + "|" + area_name + "|" + TYPE + "|" + con_id + "|ERR-USER|";
+    }
+    else {
+      console.log("[CALL_DROP] is not user")
+
+      var credit_flag = 104;
+      var call_result = "ERROR-USER";
+
+
+      var call_drop_msg = "DB|D07|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" +
+        0 + "|" + outbound + "|" + 0 + "|" + 0 + "|" + description + "|" +
+        0 + "|" + credit_flag + "|" + area_name + "|" + content + "|" + type + "|" + TYPE + "|" + s_date + "|" + c_date + "|" + e_date + "|" + con_id + "|" + call_result + "|"
+
+    }
+
+
     console.log(call_drop_msg);
     addon_child.send_data(call_drop_msg);
     //call log 쌓기
   }
-
-
-
 }
