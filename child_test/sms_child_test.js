@@ -6,6 +6,20 @@ const chema = require('../global.js')
 const global_value = require('../global_value.js')
 var addon_child = require('bindings')('addon_child');
 addon_child.setConnect(5555, "127.0.0.1");
+require('date-utils');
+var fs = require('fs');
+var options = {
+  encoding: 'utf8',
+  flag: 'a'
+};
+function write_log(data) {
+  var dt = new Date();
+
+  var d = dt.toFormat('YYYY-MM-DD HH24:MI:SS');
+  var dd =   dt.toFormat('YYYY-MM-DD');
+  fs.writeFile('./log/child/sms_child_log'+dd+".txt", '[' + d + ']' + data + '\n', options, function(err) {
+  });
+}
 
 let realm = new Realm({
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST],
@@ -187,7 +201,7 @@ function sms_out(dictdata) {
           //OUT - CALL|CALLOUT|SEQ|tcp_id|id|unit|value|droptime|imei|tmsi|kc|cksn|msisdn|user_sim_checker[0].send_sms_cnt|simbank_id|
           //sim_serial_no|simbank_name|isSip|join_app_type|error|area_name|과금방식|isSIP 0- 심 발신 / 1 - sip로 발신
           // var msg = "SMS|SMSOUT|" + seq + "|" + global_value.sms_price + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + user_sim_checker[0].send_sms_cnt + "|" + 0 + "|" + 0 + "|100|"
-          var msg = "SMS|SMSOUT|" + seq + "|" + global_value.sms_price + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" +0 + "|" + 0 + "|" + 0 + "|100|" + 0 + "|" + 0 + "|" + 0 + "|"
+          var msg = "SMS|SMSOUT|" + seq + "|" + global_value.sms_price + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|100|" + 0 + "|" + 0 + "|" + 0 + "|"
 
           process.send(msg);
           console.log(msg);
@@ -225,38 +239,54 @@ function sms_in(dictdata) {
   var pdu_data = pdu.parse(sms_pdu);
   var body = pdu_data._ud._data;
   var outbound = pdu_data._sca._encoded; //상대 방전화번호
-  var callerID = pdu_data._address._phone;//발신자 전화번호
+  var callerID = pdu_data._address._phone; //발신자 전화번호
   var date = pdu_data._scts._time; //수신 전화시간
   var TYPE = 0
   var user_check = 'user_sim_imsi = "' + sim_imsi + '"';
   var user_sim_check = 'imsi = "' + sim_imsi + '" AND expire_match_date > ' + now;
+  var user_rate_check = 'area_no = "' + global_value.country_code + '"';
+
+
   let user_checker = realm.objects('USER').filtered(user_check);
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
-  var description = outbound + " / " + user_sim_checker[0].msisdn;
+  let user_rate_checker = realm.objects('RATE').filtered(user_rate_check);
 
-  try {
-    if (user_sim_checker.length > 0 && user_checker.length > 0) {
+  var type = 0;
+  var TYPE = 0;
+  var content = "SMS"
+  var credit_flag = 103
+  var price = 0
 
-      var msisdn = user_sim_check[0].msisdn;
 
-      //SMS|SMSIN|SEQ|tcp_id|id|push_key|join_app_type|os_type|
-      var msg = command + "|" + sub_command + "|" + seq + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + user_checker[0].fcm_push_key + "|" + user_checker[0].join_type + "|" + user_checker[0].app_type + "|" + user_checker[0].user_id + "|"
-      process.send(msg);
-      var db_sms_in_msg = "DB|D08|SMS-IN|" + user_checker[0].user_serial + "|" + user_sim_checker[0].imsi + "|" + description + "|" + 0 + "|" + outbound + "|" + TYPE + "|" + 0 + "|" + 0 + "|";
-      addon_child.send_data(db_sms_in_msg);
-       // tb_sms_list (id, user_serial, mobile_number, isAppsend,err_code,simbank_name,sim_imsi, sms_date, join_app_type,credit_pid)
-    }
-    else {
-      var msg = command + "|" + sub_command + "|" + seq + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 100 + "|"
-      process.send(msg);
-      var db_sms_in_msg = "DB|D08|SMS-IN|" + 0 + "|" +  0 + "|" + 0 + "|" + 0 + "|" + outbound + "|" + TYPE + "|" + 0 + "|" + 0 + "|";
-      addon_child.send_data(db_sms_in_msg);
+  if (user_sim_checker.length > 0 && user_checker.length > 0) {
 
-    }
+    var msisdn = user_sim_check[0].msisdn;
+    var description = outbound + " / " + user_sim_checker[0].msisdn;
+
+    //SMS|SMSIN|SEQ|tcp_id|id|push_key|join_app_type|os_type|
+    var msg = command + "|" + sub_command + "|" + seq + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + user_checker[0].fcm_push_key + "|" + user_checker[0].join_type + "|" + user_checker[0].app_type + "|" + user_checker[0].user_id + "|"
+    process.send(msg);
+
+    var db_sms_in_msg = "DB|D08|SMS-IN|" + user_checker[0].user_pid + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + user_checker[0].credit + "|" +
+      user_sim_checker[0].imsi + "|" + outbound + "|" + user_sim_checker[0].simbank_name + "|" + user_sim_checker[0].sim_serial_no + "|" + description + "|" + price + "|" +
+      credit_flag + "|" + user_rate_checker[0].area_name + "|" + content + "|" + type + "|" + TYPE + "|" + now + "|" + 0 + "|" + 0 + "|";
+
+    addon_child.send_data(db_sms_in_msg);
+    // tb_sms_list (id, user_serial, mobile_number, isAppsend,err_code,simbank_name,sim_imsi, sms_date, join_app_type,credit_pid)
   }
-  catch (e) {
-    console.log(e);
+  else {
+    var description = outbound + " / " + 0;
+
+    var msg = command + "|" + sub_command + "|" + seq + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 100 + "|"
+    process.send(msg);
+
+    var db_sms_in_msg = "DB|D08|SMS-IN|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + outbound + "|" + 0 + "|" + 0 + "|" + description + "|" + price + "|" +
+      credit_flag + "|" + user_rate_checker[0].area_name + "|" + content + "|" + type + "|" + TYPE + "|" + now + "|" + 0 + "|" + 0 + "|";
+
+    addon_child.send_data(db_sms_in_msg);
+
   }
+
 
 }
 
@@ -278,41 +308,56 @@ function sms_result(dictdata) {
   //////////////////////////////////////////////////////
 
   var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
-  var user_sim_check = 'imsi = "' + sim_imsi + '" AND expire_match_date > ' + now;
   var user_check = 'user_sim_imsi = "' + sim_imsi + '"';
+  var user_sim_check = 'imsi = "' + sim_imsi + '" AND expire_match_date > ' + now;
+  var user_rate_check = 'area_no = "' + global_value.country_code + '"';
 
 
   let user_checker = realm.objects('USER').filtered(user_check);
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+  let user_rate_checker = realm.objects('RATE').filtered(user_rate_check);
 
+  var type = 0;
   var TYPE = 1;
+  var content = "SMS"
+  var credit_flag = 103
 
   //
   // console.log(realm.objects('USER'))
   // console.log(realm.objects('SIM'))
   // console.log(now)
+  try {
+    var description = outbound + " / " + user_sim_checker[0].msisdn;
 
-  var description = outbound + " / " + user_sim_checker[0].msisdn;
+  }
+  catch (e) {
+    console.log(e)
+  }
 
   if (sms_result == 'SUCCESS') { //전화 연결이 된경우
     //크래딧  차감, 심과 사용자 매칭, tb_credit_history입력
     realm.write(() => {
-      user_checker[0].credit = user_checker[0].credit - price * 10; //크래딧 차감
+      user_checker[0].credit = user_checker[0].credit - price; //크래딧 차감
     });
     // var sms_reslut_msg = "DB|D07|" + usSer_checker[0].credit + "|" + user_checker[0].user_pid + "|" + timeConverter(match_sim_checker[0].expire_match_date) + "|" + user_sim_checker[0].imsi + "|" + user_checker[0].user_id + "|" +
     //   user_checker[0].user_serial + "|" + user_sim_checker[0].msisdn + "|" + deducted_credit * 10 + "|0|CALL|" +
     //   user_checker[0].credit * 10 + "|104|" + timeConverter(now) + "|" + description + "|"+s_date+"|"+ c_date+"|"+ e_date+"|"+area_name+"|"+TYPE+"|"+user_checker[0].join_type+"|"+user_sim_checker[0].simbank_name+"|"+user_sim_checker[0].sim_serial_no+"|"+con_id+"|";
 
-    var sms_reslut_msg = "DB|D08|SMS_RESULT|" + user_checker[0].user_serial + "|" + user_sim_checker[0].imsi + "|" + description + "|" + price + "|" + outbound + "|" + TYPE + "|" + sms_result + "|" + error_code + "|";
+    // var sms_reslut_msg = "DB|D08|SMS_RESULT|" + user_checker[0].user_serial + "|" + user_sim_checker[0].imsi + "|" + description + "|" + price + "|" + outbound + "|" + TYPE + "|" + sms_result + "|" + error_code + "|";
+    var sms_reslut_msg = "DB|D08|SMSRESULT|" + user_checker[0].user_pid + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + user_checker[0].credit + "|" +
+      user_sim_checker[0].imsi + "|" + outbound + "|" + user_sim_checker[0].simbank_name + "|" + user_sim_checker[0].sim_serial_no + "|" + description + "|" + price + "|" +
+      credit_flag + "|" + user_rate_checker[0].area_name + "|" + content + "|" + type + "|" + TYPE + "|" + now + "|" + error_code + "|" + sms_result + "|"
+
     console.log(sms_reslut_msg);
     addon_child.send_data(sms_reslut_msg);
   }
-  else if (sms_result == 'FAIL') { //전화 연결이 안된경우
+  else if (sms_result == 'FAIL') { //문자 실패인 경우
     console.log("is FAIL")
+    var sms_reslut_msg = "DB|D08|SMSRESULT|" + user_checker[0].user_pid + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + user_checker[0].credit + "|" +
+      user_sim_checker[0].imsi + "|" + outbound + "|" + user_sim_checker[0].simbank_name + "|" + user_sim_checker[0].sim_serial_no + "|" + description + "|" + price + "|" +
+      credit_flag + "|" + user_rate_checker[0].area_name + "|" + content + "|" + type + "|" + TYPE + "|" + now + "|" + error_code + "|" + sms_result + "|"
 
-    var sms_reslut_msg = "DB|D08|SMS_RESULT|" + user_checker[0].user_serial + "|" + user_sim_checker[0].imsi + "|" + description + "|" + price + "|" + outbound + "|" + TYPE + "|" + sms_result + "|" + error_code + "|";
     console.log(sms_reslut_msg);
     addon_child.send_data(sms_reslut_msg);
-    //call log 쌓기
   }
 }
