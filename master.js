@@ -11,6 +11,20 @@ addon_child.setConnect(5555, "127.0.0.1");
 
 //test data : sms|data1|data2|data3,call|data1|data2,mp|data1|data2,policy|data1|data2,cnd|data1|data2,etc|data1|data2,lur|data1|data2
 var a = 0;
+require('date-utils');
+var fs = require('fs');
+var options = {
+  encoding: 'utf8',
+  flag: 'a'
+};
+
+function write_log(data) {
+  var dt = new Date();
+
+  var d = dt.toFormat('YYYY-MM-DD HH24:MI:SS');
+  var dd = dt.toFormat('YYYY-MM-DD');
+  fs.writeFile('./log/master_log' + dd + ".txt", '[' + d + ']' + data + '\n', options, function(err) {});
+}
 
 function data_test(msg) {
   dataQueue.add({
@@ -22,54 +36,64 @@ function command_classifier(data) {
   switch (data['command']) {
     case 'SMS':
       console.log("send sms_child : ", data);
+      write_log("send sms_child : ", data);
+
       sms_child_test.send({
         data: data
       });
       break;
     case 'CALL':
       console.log("send call_child : ", data);
+      write_log("send call_child : ", data);
+
       call_child_test.send({
         data: data
       });
       break;
     case 'MP':
       console.log("send mp_child : ", data);
+      write_log("send mp_child : ", data);
+
       mp_child_test.send({
         data: data
       });
       break;
     case 'POLICY':
       console.log("send policy_child : ", data);
+      write_log("send policy_child : ", data);
+
       policy_child_test.send({
         data: data
       });
       break;
     case 'CND':
       console.log("send cnd_child : ", data);
+      write_log("send cnd_child : ", data);
+
       cnd_child_test.send({
         data: data
       });
       break;
     case 'ETC':
       console.log("send etc_child : ", data);
+      write_log("send etc_child : ", data);
+
       etc_child_test.send({
         data: data
       });
       break;
     case 'LUR':
       console.log("send lur_child : ", data);
+      write_log("send lur_child : ", data);
+
       lur_child_test.send({
-        data: data
-      });
-      break;
-    case 'DB':
-      console.log("send db_child : ", data);
-      DB_test.send({
         data: data
       });
       break;
     default:
       console.log("master : not find command");
+      write_log("master : not find command");
+
   }
 }
 
@@ -110,78 +134,109 @@ const DB_test = cp.fork('./child_test/db_child_test.js');
 
 
 parsing_child_test.on('exit', code => {
-  console.log("exit")
+  console.log("parsing_child_test exit")
   console.log(`Exit code is: ${code}`);
+  write_log("parsing_child_test exit")
+  write_log(`Exit code is: ${code}`)
 })
 parsing_child_test.on('error', (value) => {
   console.log("error")
   console.log(value)
+  write_log("parsing_child_test error : " + value)
+
 })
 
 
 call_child_test.on('exit', code => {
   console.log("exit")
   console.log(`Exit code is: ${code}`);
+  write_log("call_child_test exit")
+  write_log(`Exit code is: ${code}`)
 })
 call_child_test.on('error', (value) => {
   console.log("error")
   console.log(value)
+  write_log("call_child_test error : " + value)
+
 })
-cnd_child_test.on('exit', (value) => {
+lur_child_test.on('exit', code => {
   console.log("exit")
   console.log(`Exit code is: ${code}`);
-})
-etc_child_test.on('error', (value) => {
-  console.log("error")
-  console.log(value)
-})
-lur_child_test.on('exit', code  => {
-  console.log("exit")
-  console.log(`Exit code is: ${code}`);
+  write_log("lur_child_test exit")
+  write_log(`Exit code is: ${code}`)
 })
 lur_child_test.on('error', (value) => {
   console.log("error")
   console.log(value)
+  write_log("lur_child_test error : " + value)
+
 })
-mp_child_test.on('exit', code  => {
+mp_child_test.on('exit', code => {
   console.log("exit")
   console.log(`Exit code is: ${code}`);
+  write_log("mp_child_test exit")
+  write_log(`Exit code is: ${code}`)
 })
 mp_child_test.on('error', (value) => {
   console.log("error")
   console.log(value)
+  write_log("mp_child_test error : " + value)
+
 })
-policy_child_test.on('exit', code  => {
+policy_child_test.on('exit', code => {
   console.log("exit")
   console.log(`Exit code is: ${code}`);
+  write_log("policy_child_test exit")
+  write_log(`Exit code is: ${code}`)
 })
 policy_child_test.on('error', (value) => {
   console.log("error")
   console.log(value)
+  write_log("policy_child_test error : " + value)
+
 })
-DB_test.on('exit', code  => {
+DB_test.on('exit', code => {
   console.log("exit")
   console.log(`Exit code is: ${code}`);
+  write_log("DB_test exit")
+  write_log(`Exit code is: ${code}`)
 })
 DB_test.on('error', (value) => {
   console.log("error")
   console.log(value)
+  write_log("DB_test error : " + value)
+
 })
-sms_child_test.on('exit', code  => {
+sms_child_test.on('exit', code => {
   console.log("exit")
   console.log(`Exit code is: ${code}`);
+  write_log("sms_child_test exit")
+  write_log(`Exit code is: ${code}`)
 })
 sms_child_test.on('error', (value) => {
   console.log("error")
   console.log(value)
+  write_log("sms_child_test error : " + value)
 })
 
 
+// cnd_child_test.on('exit', (value) => {
+//   console.log("exit")
+//   console.log(`Exit code is: ${code}`);
+//   write_log("cnd_child_test exit")
+//   write_log(`Exit code is: ${code}`)
+// })
+// etc_child_test.on('error', (value) => {
+//   console.log("error")
+//   console.log(value)
+// })
 
 
 parsing_child_test.on('message', (value) => {
   job_que = value;
-  console.log("recive job_que");
+  console.log("recive parsing");
+  write_log("recive parsing")
+
   while (job_que.length > 0) {
     jobQueue.add({
       msg: job_que.shift()
@@ -193,7 +248,9 @@ policy_child_test.on('message', (value) => {
   //만약 DB CHILD에 넘겨줄 데이터일경우 처리
 
 
-  console.log("send to policy");
+  console.log("receive to policy" + value);
+  write_log("receive to policy" + value)
+
   resultQueue.add({
     msg: value
   });
@@ -202,7 +259,9 @@ policy_child_test.on('message', (value) => {
 call_child_test.on('message', (value) => {
   //만약 DB CHILD에 넘겨줄 데이터일경우 처리
 
-  console.log("send to call");
+  console.log("receive to call");
+  write_log("receive to call" + value)
+
   resultQueue.add({
     msg: value
   });
@@ -211,7 +270,9 @@ call_child_test.on('message', (value) => {
 lur_child_test.on('message', (value) => {
   //만약 DB CHILD에 넘겨줄 데이터일경우 처리
 
-  console.log("send to lur");
+  console.log("receive to lur");
+  write_log("receive to lur" + value)
+
   resultQueue.add({
     msg: value
   });
@@ -221,7 +282,9 @@ lur_child_test.on('message', (value) => {
 sms_child_test.on('message', (value) => {
   //만약 DB CHILD에 넘겨줄 데이터일경우 처리
 
-  console.log("send to sms");
+  console.log("receive to sms");
+  write_log("receive to sms" + value)
+
   resultQueue.add({
     msg: value
   });
@@ -229,7 +292,9 @@ sms_child_test.on('message', (value) => {
 mp_child_test.on('message', (value) => {
   //만약 DB CHILD에 넘겨줄 데이터일경우 처리
 
-  console.log("send to sms");
+  console.log("receive to mp");
+  write_log("receive to mp" + value)
+
   resultQueue.add({
     msg: value
   });

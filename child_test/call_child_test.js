@@ -16,12 +16,13 @@ var options = {
   encoding: 'utf8',
   flag: 'a'
 };
+
 function write_log(data) {
   var dt = new Date();
 
   var d = dt.toFormat('YYYY-MM-DD HH24:MI:SS');
   var dd = dt.toFormat('YYYY-MM-DD');
-  fs.writeFile('./log/child/call_child_log' +dd+".txt", '[' + d + ']' + data + '\n', options, function(err) {});
+  fs.writeFile('./log/child/call_child_log' + dd + ".txt", '[' + d + ']' + data + '\n', options, function(err) {});
 }
 process.on('message', (value) => {
   console.log("call is on");
@@ -30,7 +31,7 @@ process.on('message', (value) => {
 
 function command_classifier(data) {
   switch (data['data1']) {
-    case 'CALLOUT': //테이블 체크
+    case 'CALLOUT':
       //call function
       console.log("CALLOUT ");
       call_out(data);
@@ -59,7 +60,7 @@ function area_no_check(msisdn) { // return area_no
     }
     catch (e) {
       console.log(e);
-      console.log("area_no parser error");
+      write_log("area_no_check parser error : " + e + " msisdn : " + msisdn)
     }
     try {
       var area_check = 'area_no = ' + area_no + '';
@@ -69,6 +70,7 @@ function area_no_check(msisdn) { // return area_no
         break;
       }
       else { //국가 넘버 못찾을경우
+        write_log("no check area_no : " + area_no);
         console.log("no check area_no : " + area_no);
       }
       if (i == 1) {
@@ -89,6 +91,7 @@ function is_local_check(outbound) {
   var number = '' + outbound;
   var outbound_1 = number.slice(0, 1)
   console.log("is local : " + number);
+  write_log("is local : " + number)
   if (outbound_1 == '0') {
     // is local
     var country_number = global_value.country_code;
@@ -103,11 +106,9 @@ function is_local_check(outbound) {
     if (global_value.country_code == parseInt(country)) {
       // is local
       return outbound;
-
     }
     else {
       // is sip
-
       return 0
     }
   }
@@ -120,14 +121,10 @@ function filterInt(value) {
   return NaN;
 }
 
-
-
 function reference_number_check(user_id, imsi) {
-
   var now = Date.now();
   var user_sim_check = 'user_id = "' + user_id + '" AND imsi = "' + sim_imsi + '" AND expire_match_date > ' + now;
   if (user_sim_checker[0].send_sms_cnt == 127) {
-
     realm.write(() => {
       user_sim_checker[0].send_sms_cnt = 0;
     })
@@ -153,22 +150,15 @@ function call_out(dictdata) {
   var tcp_id = command_line['data4'];
   var user_id = command_line['data5'];
   var outbound = command_line['data6'];
-
-
-
   var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
-
   var isSip = 0;
+
   // 유저 체크
   try {
     var user_check = 'user_id = "' + user_id + '" AND user_sim_imsi = "' + sim_imsi + '"';
     var user_sim_check = 'user_id = "' + user_id + '" AND imsi = "' + sim_imsi + '" AND expire_match_date > ' + now;
-
     let user_checker = realm.objects('USER').filtered(user_check);
     let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
-
-
-
 
     var check_outbound = filterInt(outbound)
     if (check_outbound != NaN) { // is number
@@ -185,7 +175,6 @@ function call_out(dictdata) {
         if (user_checker.length > 0 && user_sim_check.length > 0) { // 유저가 존재하고 심이 있을경우
 
           if (user_sim_checker[0].send_sms_cnt == 127) {
-
             realm.write(() => {
               user_sim_checker[0].send_sms_cnt = 0;
             })
@@ -198,19 +187,20 @@ function call_out(dictdata) {
           var user_credit = user_checker[0].credit;
           var call_value = rate_checker[0].call_value;
           var call_unit = rate_checker[0].call_unit;
-
           var available_time_s = global_value.call_drop_time(user_credit, call_unit, call_value);
-          if (available_time_s != 0 ) { // 1분동안 통화를 가능할 크래딧일 경우
+          if (available_time_s != 0) { // 1분동안 통화를 가능할 크래딧일 경우
 
             var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + call_unit + "|" + call_value + "|" + available_time_s + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + user_sim_checker[0].send_sms_cnt + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|" + isSip + "|" + user_checker[0].app_type + "|0|" + rate_checker[0].area_name + "|0|"
-
-            process.send(msg);
             console.log(msg);
+            write_log("call_out : " + msg)
+            process.send(msg);
+
           }
           else {
             //사용가능한 크래딧이 없는 경우
 
             var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + call_unit + "|" + call_value + "|" + available_time_s + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + user_sim_checker[0].send_sms_cnt + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|" + isSip + "|" + user_checker[0].app_type + "|101|" + rate_checker[0].area_name + "|0|"
+            write_log("call_out : " + msg)
 
             process.send(msg);
             console.log(msg);
@@ -228,8 +218,9 @@ function call_out(dictdata) {
             rate_checker.call_unit + "|" + call_value +
             "|0|0|0|0|0|0|" + 0 + "|0|" +
             "0|0|" + isSip + "|0|100|" + rate_checker.area_name + "|0|"
-          process.send(msg);
           console.log(msg);
+          write_log("call_out : " + msg)
+          process.send(msg);
         }
       }
       else { // 로컬 번호가 아닌경우 is sip
@@ -247,8 +238,9 @@ function call_out(dictdata) {
           var available_time_s = global_value.call_drop_time(user_credit, call_unit, call_value);
           var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + rate_checker[0].call_unit + "|" + call_value + "|" + available_time_s + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + user_sim_checker[0].send_sms_cnt + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|" + isSip + "|" + user_checker[0].app_type + "|0|" + rate_checker[0].area_name + "|0|"
 
-          process.send(msg);
           console.log(msg);
+          write_log("call_out is sip: " + msg)
+          process.send(msg);
         }
         else {
           var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|0|" +
@@ -256,19 +248,23 @@ function call_out(dictdata) {
             "|0|0|0|0|0|0|" + 0 + "|0|" +
             "0|0|" + isSip + "|0|100|" + rate_checker[0].area_name + "|0|"
 
-          process.send(msg);
           console.log(msg);
+          write_log("call_out is sip: " + msg)
+          process.send(msg);
         }
       }
     }
     else {
       //ERR is outbound not found
+      write_log("ERR is outbound not found")
       console.log("ERR is outbound not found");
     }
   }
 
   catch (e) {
     console.log(e);
+    write_log(e)
+
   }
 }
 
@@ -295,12 +291,16 @@ function call_in(dictdata) {
     var available_time_s = global_value.call_drop_time(user_checker[0].credit, global_value.call_unit, global_value.call_value);
     var msg = command + "|" + sub_command + "|" + seq + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + global_value.call_unit + "|" + global_value.call_value + "|" + available_time_s + "|" + error + "|" + user_checker[0].fcm_push_key + "|" + user_checker[0].voip_push_key + "|" + user_checker[0].join_type + "|" + user_checker[0].app_type + "|";
     console.log(msg)
+    write_log("call_in : " + msg)
+
     process.send(msg);
   }
   else {
     error = 100;
     var msg = command + "|" + sub_command + "|" + seq + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + error + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|";
     console.log(msg)
+    write_log("call_in is not user or sim: " + msg)
+
     process.send(msg);
   }
 }
@@ -367,6 +367,8 @@ function call_drop(dictdata) {
 
 
       console.log(call_drop_msg);
+      write_log("call_drop SUCCESS : " + call_drop_msg)
+
       addon_child.send_data(call_drop_msg);
 
 
@@ -384,6 +386,8 @@ function call_drop(dictdata) {
         deducted_credit + "|" + credit_flag + "|" + area_name + "|" + content + "|" + type + "|" + TYPE + "|" + s_date + "|" + c_date + "|" + e_date + "|" + con_id + "|" + call_result + "|"
 
       console.log(call_drop_msg);
+      write_log("call_drop ERR-CON" : " + call_drop_msg)
+
       addon_child.send_data(call_drop_msg);
       //call log 쌓기
     }
@@ -428,6 +432,7 @@ function call_drop(dictdata) {
 
 
     console.log(call_drop_msg);
+    write_log("call_drop is not user or sim" : + call_drop_msg)
     addon_child.send_data(call_drop_msg);
     //call log 쌓기
   }

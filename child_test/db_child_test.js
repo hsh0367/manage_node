@@ -25,12 +25,13 @@ var options = {
   encoding: 'utf8',
   flag: 'a'
 };
+
 function write_log(data) {
   var dt = new Date();
 
   var d = dt.toFormat('YYYY-MM-DD HH24:MI:SS');
   var dd = dt.toFormat('YYYY-MM-DD');
-  fs.writeFile('./log/child/db_child_log' +dd+".txt", '[' + d + ']' + data + '\n', options, function(err) {});
+  fs.writeFile('./log/child/db_child_log' + dd + ".txt", '[' + d + ']' + data + '\n', options, function(err) {});
 }
 
 function timeConverter(UNIX_timestamp) {
@@ -179,10 +180,6 @@ function sim_info_change(dictdata) {
   var command_line = dictdata;
   var imsi = command_line['data2'];
   var imsi = command_line['data2'];
-
-
-
-
 }
 
 
@@ -197,17 +194,16 @@ function DB_synchronization(dictdata) {
       if (err) throw err;
       // simlist = result;
       console.log("simlist length : " + result.length);
+      write_log("DB_synchronization sim")
 
       for (var i = 0; i < result.length; i++) {
         var sim_check = 'sim_pid =  \"' + result[i].pid + '\" AND imsi = \"' + result[i].imsi + '\"';
         let sim_checker = realm.objects('SIM').filtered(sim_check);
         var tt = result.length - i;
         console.log("sim_checker length : " + tt);
-
         if (sim_checker.isEmpty()) {
           realm.write(() => {
             var sim_expire_date = new Date(result[i].sim_expire_date).getTime()
-
             let sim = realm.create('SIM', {
               sim_pid: result[i].pid,
               sim_id: result[i].id,
@@ -226,17 +222,18 @@ function DB_synchronization(dictdata) {
         }
         else {
           console.log("이미 있는 sim 입니다.")
+          write_log("DB_synchronization sim : 이미 있는 sim 입니다")
         }
       }
-      console.log("DB_synchronization end");
+      console.log("DB_synchronization sim end");
+      write_log("DB_synchronization sim end")
     });
-
-
   }
   else if (chosechema == 'USER') {
 
     var sql = "SELECT id, pid FROM tb_user_test;";
     //sql SELECT pid, id,  sim_serial_no, imsi, simbank_name FORM tb_sim_list
+    write_log("DB_synchronization user")
 
     connection.query(sql, function(err, result, fields) {
       if (err) throw err;
@@ -258,6 +255,8 @@ function DB_synchronization(dictdata) {
         }
         else {
           console.log("이미 있는 user pid 입니다.")
+          write_log("DB_synchronization USER : 이미 있는 user pid 입니다")
+
         }
       }
     });
@@ -265,6 +264,7 @@ function DB_synchronization(dictdata) {
   }
   else if (chosechema == 'RATE') {
     var sql = "SELECT area_name, area_no, unit, value, pid FROM tb_rate;";
+    write_log("DB_synchronization RATE")
 
     connection.query(sql, function(err, result, fields) {
 
@@ -293,10 +293,14 @@ function DB_synchronization(dictdata) {
         }
         else {
           console.log("이미 있는 rate 입니다.")
+          write_log("DB_synchronization RATE : 이미 있는 rate 입니다")
+
         }
       }
     });
     console.log("DB_synchronization end");
+    write_log("DB_synchronization end RATE")
+
   }
 
 }
@@ -354,6 +358,8 @@ function fcm_key_renewal(dictdata) {
   //   if (err)
   //     console.log('Error while auto_flag_renewal Query.');
   // });
+
+  write_log("fcm_key_renewal query : " + sql)
   query_Launcher(sql);
 }
 
@@ -371,6 +377,8 @@ function voip_key_renewal(dictdata) {
   //     console.log('Error while voip_key_renewal Query.');
   // });
   query_Launcher(sql);
+  write_log("voip_key_renewal query : " + sql)
+
 }
 
 function query_processor(dictdata) {
@@ -463,22 +471,22 @@ function buy_sim(dictdata) {
 
   var command_line = dictdata;
   var sub_command = command_line['data1'];
-  var user_credit = parseInt(command_line['data2'])* global_value.mysql_credit_rate;
+  var user_credit = parseInt(command_line['data2']) * global_value.mysql_credit_rate;
   var user_pid = command_line['data3'];
   var expire_match_date = command_line['data4']; //where
   var sim_imsi = command_line['data5'];
   var user_id = command_line['data6']; //where
   var user_serial = command_line['data7'];
   var mobile_number = command_line['data8'];
-  var credit = parseInt(command_line['data9'])* global_value.mysql_credit_rate;
+  var credit = parseInt(command_line['data9']) * global_value.mysql_credit_rate;
   var type = parseInt(command_line['data10']);
   var content = command_line['data11'];
-  var db_user_credit = parseInt(command_line['data12'])* global_value.mysql_credit_rate;
+  var db_user_credit = parseInt(command_line['data12']) * global_value.mysql_credit_rate;
   var credit_flag = parseInt(command_line['data13']);
   var reg_date = command_line['data14'];
   var description = command_line['data15'];
 
-
+  write_log("buy_sim")
   try {
     var p = new Promise(function(resolve, reject) {
       resolve("Success!");
@@ -491,7 +499,6 @@ function buy_sim(dictdata) {
     console.log("------------------------------ " + expire_match_date);
     var promis = new Promise(function(resolve, reject) {
       resolve("Success!");
-      // 또는
       reject("Error!");
     });
 
@@ -500,32 +507,24 @@ function buy_sim(dictdata) {
   catch (e) {
     console.log(e);
     console.log("ERROR DB-BUY_SIM : not found sub_command");
+    write_log("ERROR DB-BUY_SIM : not found sub_command");
+    write_log(e);
   }
 }
 
 function top_up(dictdata) {
 
-  // var db_user_msg = "DB|D06|" + credit + "|" + user_checker[0].user_pid + "|";
-  // var db_credit_history_msg = "DB|D06|" + user_checker[0].user_id + "|" + user_checker[0].user_serial + "|" + credit + "|1|1|" + description + "|" + timeConverter(Date.now()) + "|" + user_checker[0].credit + "|" + event_flag + "|" + user_checker[0].user_sim_imsi + "ACCOUNT|0|TOPUP|";
-  // var db_charge_list_msg = "DB|D06|" + user_checker[0].user_id + "|" + user_checker[0].user_serial + "|" + credit + "|" + timeConverter(Date.now()) + "|" + description + "|"
-
-
-  // var db_top_up_msg = "DB|D06|" + user_checker[0].user_pid + "|" + user_checker[0].user_id + "|" +
-  //   user_checker[0].user_serial + "|" + charge_credit + "|1|1|" + description + "|" + timeConverter(Date.now()) + "|" +
-  //   user_checker[0].credit + "|" + event_flag + "|" + user_sim_checker[0].msisdn + "ACCOUNT|0|TOPUP|";
-
-
   var command_line = dictdata;
   var command = command_line['command'];
-  var credit = parseInt(command_line['data3'])* global_value.mysql_credit_rate;
+  var credit = parseInt(command_line['data3']) * global_value.mysql_credit_rate;
   var user_id = command_line['data4']; //where
   var user_serial = command_line['data5'];
-  var charge_credit = parseInt(command_line['data6'])* global_value.mysql_credit_rate;
+  var charge_credit = parseInt(command_line['data6']) * global_value.mysql_credit_rate;
   var type = parseInt(command_line['data7']); //where
   var credit_flag = parseInt(command_line['data8']); //where
   var description = command_line['data9']; //where
   var reg_date = command_line['data10']; //where
-  var user_credit = parseInt(command_line['data11'])* global_value.mysql_credit_rate; //where
+  var user_credit = parseInt(command_line['data11']) * global_value.mysql_credit_rate; //where
   var event_flag = parseInt(command_line['data12']); //where
   var mobile_number = command_line['data13']; //where
   var topup_type = command_line['data14']; //where
@@ -533,8 +532,7 @@ function top_up(dictdata) {
   var content = command_line['data16']; //where
   var credit_pid = 0;
 
-
-
+  write_log("top_up");
 
   try {
 
@@ -545,6 +543,9 @@ function top_up(dictdata) {
     //user_checker[0].user_id + "|" + user_checker[0].user_serial + "|" + credit + "|1|1|" + description + "|" + timeConverter(Date.now()) + "|" + user_checker[0].credit + "|" + event_flag + "|" + user_checker[0].user_sim_imsi + "ACCOUNT|0|TOPUP|";
     //var db_charge_list_msg = " DB|QUERY|INSERT INTO tb_charge_list (id, user_serial,charge_credit, reg_date, email ) VALUES ('" + user_checker[0].user_id + "','" + user_checker[0].user_serial + "','7500','" + timeConverter(Date.now()) + "','" + description + "')|"
     //var db_charge_list_msg = "user_checker[0].user_id + "|" + user_checker[0].user_serial + "|" + credit + "|" + timeConverter(Date.now()) + "|" + description + "|"
+    write_log("top_up  : " + db_user_msg);
+    write_log("top_up  : " + db_credit_history_msg);
+    write_log("top_up  : " + db_charge_list_msg);
 
     promis.then(query_Launcher(db_user_msg)).then(function(db_credit_history_msg) {
 
@@ -558,6 +559,7 @@ function top_up(dictdata) {
         }
         else {
           console.log(err);
+          write_log("top_up  : " + err);
         }
       });
 
@@ -565,24 +567,24 @@ function top_up(dictdata) {
   }
   catch (e) {
     console.log(e);
-    console.log("ERROR DB-BUY_SIM : top_up not found sub_command");
+    console.log("ERROR DB top_up : top_up not found sub_command");
+    write_log("ERROR DB top_up : " + e);
   }
-
 }
 
 function call_drop(dictdata) {
   console.log(dictdata)
-
+  write_log("call_drop : " + dictdata);
   var user_pid = dictdata['data2'];
   var user_serial = dictdata['data3'];
   var user_id = dictdata['data4'];
-  var credit = parseInt(dictdata['data5'])* global_value.mysql_credit_rate;
+  var credit = parseInt(dictdata['data5']) * global_value.mysql_credit_rate;
   var imsi = dictdata['data6'];
   var outbound = dictdata['data7'];
   var simbank_name = dictdata['data8'];
   var sim_serial_no = dictdata['data9'];
   var description = dictdata['data10'];
-  var deducted_credit = parseInt(dictdata['data11'])* global_value.mysql_credit_rate;
+  var deducted_credit = parseInt(dictdata['data11']) * global_value.mysql_credit_rate;
   var credit_flag = dictdata['data12'];
   var area_name = dictdata['data13'];
   var content = dictdata['data14'];
@@ -596,11 +598,11 @@ function call_drop(dictdata) {
 
   var now = Date.now();
 
-  if(c_date != 0){
+  if (c_date != 0) {
 
   }
   var use_time = e_date - c_date
-  var total_time = e_date -s_date
+  var total_time = e_date - s_date
   var isAppSend = 0
   var reg_date = timeConverter(Date.now());
 
@@ -627,7 +629,7 @@ function call_drop(dictdata) {
       var credit_flag = 104
       var type = 0; // 가감 부분 0이면 - 이면 +
       var db_user_msg = "UPDATE tb_user_test set credit = " + credit + " WHERE pid  = " + user_pid + "";
-      var db_credit_history_msg = "INSERT INTO tb_credit_history (id, user_serial, mobile_number, credit, type, content, user_credit, credit_flag, reg_date, description) VALUES ('" + user_id + "','" + user_serial + "','" + outbound + "'," + deducted_credit + "," + type + ",'" + content + "'," + credit  + "," + credit_flag + ",'" + reg_date + "','" + description + "')";
+      var db_credit_history_msg = "INSERT INTO tb_credit_history (id, user_serial, mobile_number, credit, type, content, user_credit, credit_flag, reg_date, description) VALUES ('" + user_id + "','" + user_serial + "','" + outbound + "'," + deducted_credit + "," + type + ",'" + content + "'," + credit + "," + credit_flag + ",'" + reg_date + "','" + description + "')";
 
 
       var promis = new Promise(function(resolve, reject) {
@@ -636,6 +638,7 @@ function call_drop(dictdata) {
         reject("Error!");
       });
       query_Launcher(db_user_msg)
+
       write_log("call-drop db_user_msg SUCESS : " + db_user_msg)
       write_log("call-drop db_credit_history_msg SUCESS : " + db_credit_history_msg)
 
@@ -643,7 +646,7 @@ function call_drop(dictdata) {
         .then(rows => {
           var credit_pid = rows.insertId
           console.log("call credit_pid : " + credit_pid)
-          var db_call_log_msg = "INSERT INTO tb_call_log (id, user_serial, con_id, mobile_number,  s_date, c_date, e_date, use_time, total_time, area_name, simbank_name, sim_imsi, sim_no, isAppSend,credit_pid) VALUES ( '" + user_id + "','" + user_serial + "','" + con_id + "','" + outbound + "', '" + timeConverter(s_date *1000) + "','" + timeConverter(c_date *1000) + "','" + timeConverter(e_date *1000) + "'," + use_time + "," + total_time + ",'" + area_name + "','" + simbank_name + "','" + imsi + "'," + sim_serial_no + "," + isAppSend + "," + credit_pid + ")"
+          var db_call_log_msg = "INSERT INTO tb_call_log (id, user_serial, con_id, mobile_number,  s_date, c_date, e_date, use_time, total_time, area_name, simbank_name, sim_imsi, sim_no, isAppSend,credit_pid) VALUES ( '" + user_id + "','" + user_serial + "','" + con_id + "','" + outbound + "', '" + timeConverter(s_date * 1000) + "','" + timeConverter(c_date * 1000) + "','" + timeConverter(e_date * 1000) + "'," + use_time + "," + total_time + ",'" + area_name + "','" + simbank_name + "','" + imsi + "'," + sim_serial_no + "," + isAppSend + "," + credit_pid + ")"
           console.log("call db_call_log_msg SUCESS : " + db_call_log_msg)
           write_log("call-drop db_call_log_msg SUCESS : " + db_call_log_msg)
           return database.query(db_call_log_msg);
@@ -652,54 +655,37 @@ function call_drop(dictdata) {
     catch (e) {
       console.log(e);
       console.log("[CALL-DROP] ERROR : not found sub_command");
-      write_log("[CALL-DROP] ERROR : not found sub_command")
-
+      write_log("[CALL-DROP] ERROR : not found sub_command error : " + e)
     }
   }
   else if (call_result == "ERR-CON") {
     console.log("err-con")
 
-  var db_call_log_msg = "INSERT INTO tb_call_log (id, user_serial, con_id, mobile_number,  s_date, c_date, e_date, use_time, total_time, area_name, simbank_name, sim_imsi, sim_no, isAppSend) VALUES ( '" + user_id + "','" + user_serial + "','" + con_id + "','" + outbound + "', '" + timeConverter(s_date *1000) + "','" + timeConverter(c_date *1000) + "','" + timeConverter(e_date *1000) + "'," + use_time + "," + total_time + ",'" + area_name + "','" + simbank_name + "','" + imsi + "'," + sim_serial_no + "," + isAppSend + ")"
+    var db_call_log_msg = "INSERT INTO tb_call_log (id, user_serial, con_id, mobile_number,  s_date, c_date, e_date, use_time, total_time, area_name, simbank_name, sim_imsi, sim_no, isAppSend) VALUES ( '" + user_id + "','" + user_serial + "','" + con_id + "','" + outbound + "', '" + timeConverter(s_date * 1000) + "','" + timeConverter(c_date * 1000) + "','" + timeConverter(e_date * 1000) + "'," + use_time + "," + total_time + ",'" + area_name + "','" + simbank_name + "','" + imsi + "'," + sim_serial_no + "," + isAppSend + ")"
     console.log(db_call_log_msg);
-
     write_log("call-drop db_call_log_msg ERR-CON : " + db_call_log_msg)
-
     query_Launcher(db_call_log_msg);
   }
   else {
     console.log("ERR-USER")
-
+    console.log(db_call_log_msg);
     var db_call_log_msg = "INSERT INTO tb_call_log (id, user_serial, con_id, mobile_number,  s_date, c_date, e_date, use_time, total_time, area_name, simbank_name, sim_imsi, sim_no, isAppSend) VALUES ( '" + user_id + "','" + user_serial + "','" + con_id + "','" + outbound + "', '" + s_date + "','" + c_date + "','" + e_date + "'," + use_time + "," + total_time + ",'" + area_name + "','" + simbank_name + "','" + imsi + "'," + sim_serial_no + "," + isAppSend + ")"
     write_log("call-drop db_call_log_msg ERR-USER : " + db_call_log_msg)
-
-    console.log(db_call_log_msg);
     query_Launcher(db_call_log_msg);
   }
-
-
 }
-
-
 function sms_result(dictdata) {
-  //  var sms_reslut_msg = "DB|D08|SMS-IN|" + user_checker[0].user_serial + "|" + user_sim_checker[0].imsi + "|" + description + "|" + price + "|" + outbound + "|" + TYPE + "|"  + "|SUCCESS|";
-  //
-  // var sms_reslut_msg = "DB|D08|SMS-IN|" + user_checker[0].user_pid + "|" + user_checker[0].user_serial + "|"
-  // + user_checker[0].user_id + "|" + user_checker[0].credit + "|" +user_sim_checker[0].imsi + "|" + outbound + "|"
-  //  + user_sim_checker[0].simbank_name + "|" + user_sim_checker[0].sim_serial_no + "|" + description + "|" + price + "|"
-  //   + credit_flag + "|" + user_rate_checker[0].area_name + "|" + content + "|" + type + "|" + TYPE + "|" + now + "|" + error_code + "|" + sms_result + "|"
-
-
   var sub_command = dictdata['data2'];
   var user_pid = dictdata['data3'];
   var user_serial = dictdata['data4'];
   var user_id = dictdata['data5'];
-  var credit = parseInt(dictdata['data6']) *  global_value.mysql_credit_rate;
+  var credit = parseInt(dictdata['data6']) * global_value.mysql_credit_rate;
   var imsi = dictdata['data7'];
   var outbound = dictdata['data8'];
   var simbank_name = dictdata['data9'];
   var sim_serial_no = dictdata['data10'];
   var description = dictdata['data11'];
-  var price = parseInt(dictdata['data12'])*  global_value.mysql_credit_rate;
+  var price = parseInt(dictdata['data12']) * global_value.mysql_credit_rate;
   var credit_flag = dictdata['data13'];
   var area_name = dictdata['data14'];
   var content = dictdata['data15'];
@@ -709,34 +695,30 @@ function sms_result(dictdata) {
   var error_code = dictdata['data19'];
   var sms_result = dictdata['data20'];
 
-
   if (sub_command == 'SMS_IN') {
     console.log("SMS_IN")
     write_log("SMS_IN")
 
     var db_sms_log_msg = "INSERT INTO tb_sms_list (id, user_serial, mobile_number, isAppsend,err_code,simbank_name,sim_imsi,sms_date) VALUES ( '" + user_id + "','" + user_serial + "','" + outbound + "'," + TYPE + ",'" + error_code + "','" + simbank_name + "','" + imsi + "', '" + timeConverter(sms_date) + "')"
     console.log(db_sms_log_msg);
-    write_log("SMS_IN db_sms_log_msg : " + db_sms_log_msg)
     query_Launcher(db_sms_log_msg);
+    write_log("SMS_IN db_sms_log_msg : " + db_sms_log_msg)
   }
   else {
-
     if (sms_result == "SUCCESS") {
-      // if (true) {
 
       try {
         var p = new Promise(function(resolve, reject) {
           resolve("");
         });
 
-
         var content = "SMS"
         var credit_flag = 104
         var type = 0; // 가감 부분 0이면 - 이면 +
-        var db_user_msg = "UPDATE tb_user_test set credit = " + credit  + " WHERE pid  = " + user_pid + "";
-        var db_credit_history_msg = "INSERT INTO tb_credit_history (id, user_serial, mobile_number, credit, type, content, user_credit, credit_flag, reg_date,  description) VALUES ('" + user_id + "','" + user_serial + "','" + outbound + "'," + price  + "," + type + ",'" + content + "'," + credit + "," + credit_flag + ",'" + timeConverter(sms_date) + "','" + description + "')";
-        console.log(db_credit_history_msg)
+        var db_user_msg = "UPDATE tb_user_test set credit = " + credit + " WHERE pid  = " + user_pid + "";
+        var db_credit_history_msg = "INSERT INTO tb_credit_history (id, user_serial, mobile_number, credit, type, content, user_credit, credit_flag, reg_date,  description) VALUES ('" + user_id + "','" + user_serial + "','" + outbound + "'," + price + "," + type + ",'" + content + "'," + credit + "," + credit_flag + ",'" + timeConverter(sms_date) + "','" + description + "')";
 
+        console.log(db_credit_history_msg)
         write_log("SMS_OUT db_user_msg : " + db_user_msg)
         write_log("SMS_OUT db_credit_history_msg : " + db_credit_history_msg)
 
@@ -745,23 +727,20 @@ function sms_result(dictdata) {
           .then(rows => {
             var credit_pid = rows.insertId
             console.log(credit_pid)
-            var db_sms_log_msg = "INSERT INTO tb_sms_list (id, user_serial, mobile_number, isAppsend,err_code,simbank_name,sim_imsi, sms_date, credit_pid) VALUES ( '" + user_id + "','" + user_serial + "','" + outbound + "'," +  TYPE + ",'" + error_code + "','" + simbank_name + "','" + imsi + "','" + timeConverter(sms_date) + "'," + credit_pid + ")"
+            var db_sms_log_msg = "INSERT INTO tb_sms_list (id, user_serial, mobile_number, isAppsend,err_code,simbank_name,sim_imsi, sms_date, credit_pid) VALUES ( '" + user_id + "','" + user_serial + "','" + outbound + "'," + TYPE + ",'" + error_code + "','" + simbank_name + "','" + imsi + "','" + timeConverter(sms_date) + "'," + credit_pid + ")"
             write_log("SMS_OUT db_sms_log_msg : " + db_sms_log_msg)
             return database.query(db_sms_log_msg);
           });
-
-
       }
       catch (e) {
         console.log(e);
         console.log("ERROR DB-BUY_SIM : not found sub_command");
-        write_log("SMS_OUT ERR-USER db_sms_log_msg ");
-
+        write_log("SMS_OUT ERR-USER db_sms_log_msg  error : "+e);
       }
     }
     else {
       console.log("err-user")
-      var db_sms_log_msg = "INSERT INTO tb_sms_list (id, user_serial, mobile_number, isAppsend,err_code,simbank_name,sim_imsi, sms_date) VALUES ( '" + user_id + "','" + user_serial + "','" + outbound + "',"+ TYPE + ",'" + error_code + "','" + simbank_name + "','" + imsi + "','" + timeConverter(sms_date) + "')"
+      var db_sms_log_msg = "INSERT INTO tb_sms_list (id, user_serial, mobile_number, isAppsend,err_code,simbank_name,sim_imsi, sms_date) VALUES ( '" + user_id + "','" + user_serial + "','" + outbound + "'," + TYPE + ",'" + error_code + "','" + simbank_name + "','" + imsi + "','" + timeConverter(sms_date) + "')"
       console.log(db_sms_log_msg);
       write_log("SMS_OUT ERR-USER db_sms_log_msg : " + db_sms_log_msg);
       query_Launcher(db_sms_log_msg);

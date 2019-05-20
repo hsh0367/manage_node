@@ -1,3 +1,4 @@
+console.log("[PARSING] ON")
 function parser(data) {
   console.log("paser start")
   var str = data;

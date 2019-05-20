@@ -5,20 +5,6 @@ const global_value = require('../global_value.js')
 var Queue = require('bull');
 var lur_que = new Queue('lur_que');
 var check_que = new Queue('check_que');
-// lur_que.on('empty', function(job, result) {
-//   console.log("lur_que is empty");
-// });
-// check_que.on('empty', function(job, result) {
-//   console.log("check_que is empty");
-// });
-// lur_que.clean(1000);
-// check_que.clean(1000);
-// lur_que.on('cleaned', function(job, status) {
-//   console.log("lur_que is cleaned");
-// });
-// check_que.on('cleaned', function(job, status) {
-//   console.log("check_que is cleaned");
-// });
 let realm = new Realm({
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST],
   schemaVersion: 20
@@ -36,14 +22,9 @@ function write_log(data) {
   var dt = new Date();
 
   var d = dt.toFormat('YYYY-MM-DD HH24:MI:SS');
-  //  var data = 'Hello FileSystem';
-  //fs.appendFile('./vina_log.txt', data, options);
-  fs.writeFile('lur_log.txt', '[' + d + ']' + data + '\n', options, function(err) {
-    //  console.log('비동기적 파일 쓰기 완료');
+  var dd =   dt.toFormat('YYYY-MM-DD');
+  fs.writeFile('./log/child/lur_child_log'+dd+".txt", '[' + d + ']' + data + '\n', options, function(err) {
   });
-
-  //  fs.writeFileSync('text2.txt', data, 'utf8');
-  //  console.log('write_log');
 }
 
 console.log("[LUR] ON");
@@ -56,29 +37,38 @@ lur_que.empty().then(function(){
 check_que.empty().then(function(){
   console.log("check_que : emptyyyyyyyyyyyyyyyyyyyy")
   write_log("check_que : emptyyyyyyyyyyyyyyyyyyyy")
-
 })
 lur_que.process(function(job, done) {
   var user_sim_check = 'imsi = "' + job.data.imsi + '"';
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
   // console.log("jobQueue : ", job.data.msg);
   //MP|LUR|imsi|imei|tmsi|kc|cksn|msisdn|lac|simbank_id|sim_serial_no|
-  console.log("lur_que id : " + job.id + " imsi  : " + job.data.imsi + "")
+  var now = Date.now();
 
-  realm.write(() => {
-    user_sim_checker[0].lur_fail_cnt = user_sim_checker[0].lur_fail_cnt + 1
-    user_sim_checker[0].lur_check = 0
-  });
-  check_que.add({
-    imsi: job.data.imsi
-  }, {
-    delay: global_value.lur_check_time,
-    // jobId: job.data.imsi
-  });
-  var msg = "MP|LUR|" + user_sim_checker[0].imsi + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + user_sim_checker[0].lac + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|"
-  console.log(msg);
-  process.send(msg);
-  write_log("lur_que :  done check_que add  imsi : " + job.data.imsi)
+  console.log("lur_que id : " + job.id + " imsi  : " + job.data.imsi + "")
+  if(user_sim_checker[0].lur_date + global_value.lur_check_time < now){
+    realm.write(() => {
+      user_sim_checker[0].lur_fail_cnt = user_sim_checker[0].lur_fail_cnt + 1
+      user_sim_checker[0].lur_check = 0
+    });
+    check_que.add({
+      imsi: job.data.imsi
+    }, {
+      delay: global_value.lur_check_time,
+      // jobId: job.data.imsi
+    });
+    var msg = "MP|LUR|" + user_sim_checker[0].imsi + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + user_sim_checker[0].lac + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|"
+    console.log(msg);
+    process.send(msg);
+    write_log("lur_que :  done check_que add  imsi : " + job.data.imsi)
+
+  }else{
+    console.log("lur_que :  add pass is already lur : " + job.data.imsi);
+    write_log("lur_que :  add pass is already lur : " + job.data.imsi)
+
+  }
+
+
   done();
 });
 
@@ -112,7 +102,7 @@ check_que.process(function(job, done) {
     }
     catch (e) {
       console.log(e)
-      write_log("check_que :  lur_que add error  imsi : " + job.data.imsi)
+      write_log("check_que :  lur_que add error  imsi : " + job.data.imsi + " error : "+ e)
 
     }
   }
@@ -210,15 +200,8 @@ function lur_update(dictdata) {
 
 
 
-      if (user_sim_checker[0].lur_date + global_value.lur_time < now && user_sim_checker[0].lur_check == 0) { //lur이 시도 실패
+      if (true) { //lur이 시도 실패
 
-        lur_que.add({
-          imsi: imsi
-        }, {
-          // delay: global_value.lur_time
-          delay: global_value.lur_time,
-          // jobId: imsi
-        });
         realm.write(() => {
           user_sim_checker[0].lur_check = 1,
             user_sim_checker[0].tmsi = tmsi,
@@ -234,6 +217,13 @@ function lur_update(dictdata) {
             user_sim_checker[0].lur_check = 1
         });
 
+        lur_que.add({
+          imsi: imsi
+        }, {
+          // delay: global_value.lur_time
+          delay: global_value.lur_time,
+          // jobId: imsi
+        });
 
         write_log("lur_update : lur_que add reTMSI " + global_value.lur_time + " imsi : " + user_sim_checker[0].imsi)
       }
@@ -266,7 +256,7 @@ function lur_update(dictdata) {
     });
     if (user_sim_checker.length > 0) {
 
-      if (user_sim_checker[0].lur_date + global_value.lur_time < now && user_sim_checker[0].lur_check == 0) { //lur이 시도 실패
+      if (true) { //lur이 시도 실패
         if (result == 1) {
           console.log("lur_update : lur_que add ")
 
