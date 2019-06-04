@@ -12,18 +12,18 @@ var options = {
   encoding: 'utf8',
   flag: 'a'
 };
+
 function write_log(data) {
   var dt = new Date();
 
   var d = dt.toFormat('YYYY-MM-DD HH24:MI:SS');
-  var dd =   dt.toFormat('YYYY-MM-DD');
-  fs.writeFile('./log/child/sms_child_log'+dd+".txt", '[' + d + ']' + data + '\n', options, function(err) {
-  });
+  var dd = dt.toFormat('YYYY-MM-DD');
+  fs.writeFile('./log/child/sms_child_log' + dd + ".txt", '[' + d + ']' + data + '\n', options, function(err) {});
 }
 
 let realm = new Realm({
-  schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST],
-  schemaVersion: 20
+  schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.GLOBALCARRIER_TEST,],
+  schemaVersion: 24
 });
 var pdu = require('node-pdu');
 

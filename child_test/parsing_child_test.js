@@ -2,6 +2,9 @@ console.log("[PARSING] ON")
 function parser(data) {
   console.log("paser start")
   var str = data;
+  console.log("ssssss : "+data)
+
+
   var command_divied = str.split(",");
   var job_que = [];
   command_divied.forEach(function(dummy) {

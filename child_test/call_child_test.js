@@ -5,9 +5,9 @@ const global_value = require('../global_value.js')
 var addon_child = require('bindings')('addon_child');
 addon_child.setConnect(5555, "127.0.0.1");
 
-let realm = new Realm({
-  schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST],
-  schemaVersion: 20
+var realm = new Realm({
+  schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
+  schemaVersion: 24
 });
 
 require('date-utils');
@@ -121,22 +121,6 @@ function filterInt(value) {
   return NaN;
 }
 
-function reference_number_check(user_id, imsi) {
-  var now = Date.now();
-  var user_sim_check = 'user_id = "' + user_id + '" AND imsi = "' + sim_imsi + '" AND expire_match_date > ' + now;
-  if (user_sim_checker[0].send_sms_cnt == 127) {
-    realm.write(() => {
-      user_sim_checker[0].send_sms_cnt = 0;
-    })
-  }
-  else {
-    realm.write(() => {
-      user_sim_checker[0].send_sms_cnt = user_sim_checker[0].send_sms_cnt + 1;
-    })
-  }
-
-}
-
 function call_out(dictdata) {
   //IN - CALL|CALLOUT|SEQ|sim_imsi|tcp_id|id|outbound|
   //OUT - CALL|CALLOUT|SEQ|tcp_id|id|unit|value|droptime|imei|tmsi|kc|cksn|msisdn|user_sim_checker[0].send_sms_cnt|simbank_id|
@@ -157,8 +141,10 @@ function call_out(dictdata) {
   try {
     var user_check = 'user_id = "' + user_id + '" AND user_sim_imsi = "' + sim_imsi + '"';
     var user_sim_check = 'user_id = "' + user_id + '" AND imsi = "' + sim_imsi + '" AND expire_match_date > ' + now;
-    let user_checker = realm.objects('USER').filtered(user_check);
-    let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+    var user_checker = realm.objects('USER').filtered(user_check);
+    var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+
+
 
     var check_outbound = filterInt(outbound)
     if (check_outbound != NaN) { // is number
@@ -166,31 +152,45 @@ function call_out(dictdata) {
       var outbound_n = is_local_check(check_outbound)
       if (outbound_n != 0) { // is local
 
-
         // var out_sim_area_no = area_no_check(outbound_n)
 
         var rate_check = 'area_no = ' + global_value.country_code + '';
         var rate_checker = realm.objects('RATE').filtered(rate_check);
+        var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
+        var call_unit = rate_checker[0].call_unit
+        var area_name = rate_checker[0].area_name
 
-        if (user_checker.length > 0 && user_sim_check.length > 0) { // 유저가 존재하고 심이 있을경우
+        if (user_checker.length > 0 && user_sim_checker.length > 0) { // 유저가 존재하고 심이 있을경우
 
-          if (user_sim_checker[0].send_sms_cnt == 127) {
+          var imei = user_sim_checker[0].imei
+          var tmsi = user_sim_checker[0].tmsi
+          var kc = user_sim_checker[0].kc
+          var cksn = user_sim_checker[0].cksn
+          var msisdn = user_sim_checker[0].msisdn
+          var send_sms_cnt = user_sim_checker[0].send_sms_cnt
+          var sim_id = user_sim_checker[0].sim_id
+          var sim_serial_no = user_sim_checker[0].sim_serial_no
+          var simbank_name = user_sim_checker[0].simbank_name
+          var user_credit = user_checker[0].credit;
+          var app_type = user_checker[0].app_type
+
+          var available_time_s = global_value.call_drop_time(user_credit, call_unit, call_value);
+
+          if (send_sms_cnt == 127) {
+            send_sms_cnt = 0
             realm.write(() => {
-              user_sim_checker[0].send_sms_cnt = 0;
+              user_sim_checker[0].send_sms_cnt = send_sms_cnt;
             })
           }
           else {
+            send_sms_cnt = send_sms_cnt + 1
             realm.write(() => {
-              user_sim_checker[0].send_sms_cnt = user_sim_checker[0].send_sms_cnt + 1;
+              user_sim_checker[0].send_sms_cnt = send_sms_cnt
             })
           }
-          var user_credit = user_checker[0].credit;
-          var call_value = rate_checker[0].call_value;
-          var call_unit = rate_checker[0].call_unit;
-          var available_time_s = global_value.call_drop_time(user_credit, call_unit, call_value);
           if (available_time_s != 0) { // 1분동안 통화를 가능할 크래딧일 경우
 
-            var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + call_unit + "|" + call_value + "|" + available_time_s + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + user_sim_checker[0].send_sms_cnt + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|" + isSip + "|" + user_checker[0].app_type + "|0|" + rate_checker[0].area_name + "|0|"
+            var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + call_unit + "|" + call_value + "|" + available_time_s + "|" + imei + "|" + tmsi + "|" + kc + "|" + cksn + "|" + msisdn + "|" + send_sms_cnt + "|" + sim_id + "|" + sim_serial_no + "|" + simbank_name + "|" + isSip + "|" + app_type + "|0|" + area_name + "|0|"
             console.log(msg);
             write_log("call_out : " + msg)
             process.send(msg);
@@ -199,7 +199,7 @@ function call_out(dictdata) {
           else {
             //사용가능한 크래딧이 없는 경우
 
-            var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + call_unit + "|" + call_value + "|" + available_time_s + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + user_sim_checker[0].send_sms_cnt + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|" + isSip + "|" + user_checker[0].app_type + "|101|" + rate_checker[0].area_name + "|0|"
+            var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + call_unit + "|" + call_value + "|" + available_time_s + "|" + imei + "|" + tmsi + "|" + kc + "|" + cksn + "|" + msisdn + "|" + send_sms_cnt + "|" + sim_id + "|" + sim_serial_no + "|" + simbank_name + "|" + isSip + "|" + app_type + "|101|" + area_name + "|0|"
             write_log("call_out : " + msg)
 
             process.send(msg);
@@ -208,45 +208,83 @@ function call_out(dictdata) {
 
 
         }
+        else if (user_checker.length > 0 && user_sim_checker.length == 0) {
+
+          var user_credit = user_checker[0].credit;
+          var app_type = user_checker[0].app_type
+
+          isSip = 1;
+          var available_time_s = global_value.call_drop_time(user_credit, call_unit, call_value);
+
+          console.log()
+
+          var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + call_unit + "|" + call_value + "|" + available_time_s + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + isSip + "|" + app_type + "|0|" + area_name + "|0|"
+
+          console.log(msg);
+          write_log("call_out is sip: " + msg)
+          process.send(msg);
+        }
         else { // 유저와심이 없을 경우
           //OUT - CALL|CALLOUT|SEQ|tcp_id|id|unit|value|droptime|imei|tmsi|kc|cksn|msisdn|user_sim_checker[0].send_sms_cnt_number|simbank_id|
           //sim_serial_no|simbank_name|isSip|join_app_type|error|area_name|과금방식|isSIP 0- 심 발신 / 1 - sip로 발신
           var rate_checker = area_no_check(outbound_n)
           var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
+          var call_unit = rate_checker[0].call_unit
+          var area_name = rate_checker[0].area_name
 
           var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|0|" +
-            rate_checker.call_unit + "|" + call_value +
+            call_unit + "|" + call_value +
             "|0|0|0|0|0|0|" + 0 + "|0|" +
-            "0|0|" + isSip + "|0|100|" + rate_checker.area_name + "|0|"
+            "0|0|" + isSip + "|0|100|" + area_name + "|0|"
           console.log(msg);
           write_log("call_out : " + msg)
           process.send(msg);
         }
       }
       else { // 로컬 번호가 아닌경우 is sip
-
-
         isSip = 1;
+
         var rate_checker = area_no_check(outbound)
         var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
+        var call_unit = rate_checker[0].call_unit
+        var area_name = rate_checker[0].area_name
 
-        if (user_checker.length > 0) {
+        if (user_checker.length > 0 && user_sim_checker.length > 0) {
+
+          var imei = user_sim_checker[0].imei
+          var tmsi = user_sim_checker[0].tmsi
+          var kc = user_sim_checker[0].kc
+          var cksn = user_sim_checker[0].cksn
+          var msisdn = user_sim_checker[0].msisdn
+          var send_sms_cnt = user_sim_checker[0].send_sms_cnt
+          var sim_id = user_sim_checker[0].sim_id
+          var sim_serial_no = user_sim_checker[0].sim_serial_no
+          var simbank_name = user_sim_checker[0].simbank_name
           var user_credit = user_checker[0].credit;
-          var call_value = parseFloat(rate_checker[0].call_value.toFixed(3));
-          var call_unit = rate_checker[0].call_unit;
+          var app_type = user_checker[0].app_type
 
           var available_time_s = global_value.call_drop_time(user_credit, call_unit, call_value);
-          var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + rate_checker[0].call_unit + "|" + call_value + "|" + available_time_s + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + user_sim_checker[0].send_sms_cnt + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].simbank_name + "|" + isSip + "|" + user_checker[0].app_type + "|0|" + rate_checker[0].area_name + "|0|"
+          var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + call_unit + "|" + call_value + "|" + available_time_s + "|" + imei + "|" + tmsi + "|" + kc + "|" + cksn + "|" + msisdn + "|" + send_sms_cnt + "|" + sim_id + "|" + sim_serial_no + "|" + simbank_name + "|" + isSip + "|" + app_type + "|0|" + area_name + "|0|"
 
           console.log(msg);
           write_log("call_out is sip: " + msg)
           process.send(msg);
         }
+        else if (user_checker.length > 0 && user_sim_checker.length == 0) {
+          var user_credit = user_checker[0].credit;
+          var app_type = user_checker[0].app_type
+          var available_time_s = global_value.call_drop_time(user_credit, call_unit, call_value);
+          var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|" + user_id + "|" + call_unit + "|" + call_value + "|" + available_time_s + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + isSip + "|" + app_type + "|0|" + area_name + "|0|"
+          console.log(msg);
+          write_log("call_out is sip: " + msg)
+          process.send(msg);
+        }
         else {
+
           var msg = "CALL|CALLOUT|" + seq + "|" + tcp_id + "|0|" +
-            rate_checker[0].call_unit + "|" + call_value +
+            call_unit + "|" + call_value +
             "|0|0|0|0|0|0|" + 0 + "|0|" +
-            "0|0|" + isSip + "|0|100|" + rate_checker[0].area_name + "|0|"
+            "0|0|" + isSip + "|0|100|" + area_name + "|0|"
 
           console.log(msg);
           write_log("call_out is sip: " + msg)
@@ -260,7 +298,6 @@ function call_out(dictdata) {
       console.log("ERR is outbound not found");
     }
   }
-
   catch (e) {
     console.log(e);
     write_log(e)
@@ -279,17 +316,26 @@ function call_in(dictdata) {
   var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
 
 
-
-  var user_check = 'user_sim_imsi = "' + sim_imsi + '"';
   var user_sim_check = 'imsi = "' + sim_imsi + '" AND expire_match_date > ' + now;
-  let user_checker = realm.objects('USER').filtered(user_check);
-  let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
-
+  var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+  var user_id = user_sim_checker[0].user_id;
+  var user_check = 'user_id = "' + user_id + '" AND user_sim_imsi = "' + sim_imsi + '"';
+  var user_checker = realm.objects('USER').filtered(user_check);
   var error = 0;
   if (user_sim_checker.length > 0 && user_checker.length > 0) {
+    var credit = user_checker[0].credit;
+    var user_serial = user_checker[0].user_serial;
+    var user_id = user_checker[0].user_id;
+    var fcm_push_key = user_checker[0].fcm_push_key;
+    var voip_push_key = user_checker[0].voip_push_key;
+    var join_type = user_checker[0].join_type;
+    var app_type = user_checker[0].app_type;
+
+
+
     error = 0;
-    var available_time_s = global_value.call_drop_time(user_checker[0].credit, global_value.call_unit, global_value.call_value);
-    var msg = command + "|" + sub_command + "|" + seq + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + global_value.call_unit + "|" + global_value.call_value + "|" + available_time_s + "|" + error + "|" + user_checker[0].fcm_push_key + "|" + user_checker[0].voip_push_key + "|" + user_checker[0].join_type + "|" + user_checker[0].app_type + "|";
+    var available_time_s = global_value.call_drop_time(credit, global_value.call_unit, global_value.call_value);
+    var msg = command + "|" + sub_command + "|" + seq + "|" + user_serial + "|" + user_id + "|" + call_unit + "|" + call_value + "|" + available_time_s + "|" + error + "|" + fcm_push_key + "|" + voip_push_key + "|" + join_type + "|" + app_type + "|";
     console.log(msg)
     write_log("call_in : " + msg)
 
@@ -335,18 +381,27 @@ function call_drop(dictdata) {
   var user_check = 'user_sim_imsi = "' + sim_imsi + '"';
 
 
-  let user_checker = realm.objects('USER').filtered(user_check);
-  let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+  var user_checker = realm.objects('USER').filtered(user_check);
+  var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+
 
   var content = 'CALL'
   var type = 0;
-
+  var description = "0"
   // console.log(realm.objects('USER'))
   // console.log(realm.objects('SIM'))
   // console.log(now)
 
   if (user_checker.length > 0 && user_sim_checker.length > 0) { //유저와 심이 있을경우
-    var description = outbound + " / " + user_sim_checker[0].msisdn;
+    description = outbound + " / " + user_sim_checker[0].msisdn;
+    var credit = user_checker[0].credit
+    var user_pid = user_checker[0].user_pid
+    var user_serial = user_checker[0].user_serial
+    var user_id = user_checker[0].user_id
+    var imsi = user_sim_checker[0].imsi
+    var simbank_name = user_sim_checker[0].simbank_name
+    var sim_serial_no = user_sim_checker[0].sim_serial_no
+
 
     if (c_date != '0') { //전화 연결이 된경우
       var call_time = 0
@@ -358,11 +413,13 @@ function call_drop(dictdata) {
 
 
       //크래딧  차감, 심과 사용자 매칭, tb_credit_history입력
+      credit = credit - deducted_credit;
       realm.write(() => {
-        user_checker[0].credit = user_checker[0].credit - deducted_credit; //크래딧 차감
+        user_checker[0].credit = credit; //크래딧 차감
       });
-      var call_drop_msg = "DB|D07|" + user_checker[0].user_pid + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + user_checker[0].credit + "|" +
-        user_sim_checker[0].imsi + "|" + outbound + "|" + user_sim_checker[0].simbank_name + "|" + user_sim_checker[0].sim_serial_no + "|" + description + "|" +
+
+      var call_drop_msg = "DB|D07|" + user_pid + "|" + user_serial + "|" + user_id + "|" + credit + "|" +
+        imsi + "|" + outbound + "|" + simbank_name + "|" + sim_serial_no + "|" + description + "|" +
         deducted_credit + "|" + credit_flag + "|" + area_name + "|" + content + "|" + type + "|" + TYPE + "|" + s_date + "|" + c_date + "|" + e_date + "|" + con_id + "|" + call_result + "|"
 
 
@@ -381,12 +438,12 @@ function call_drop(dictdata) {
       var deducted_credit = 0
 
       // var call_drop_msg = "DB|D07|" + user_checker[0].user_serial + "|" + user_sim_checker[0].imsi + "|" + description + "|" + s_date + "|" + c_date + "|" + e_date + "|" + 0 + "|" + area_name + "|" + TYPE + "|" + con_id + "|ERR-CON|";
-      var call_drop_msg = "DB|D07|" + user_checker[0].user_pid + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + user_checker[0].credit + "|" +
-        user_sim_checker[0].imsi + "|" + outbound + "|" + user_sim_checker[0].simbank_name + "|" + user_sim_checker[0].sim_serial_no + "|" + description + "|" +
+      var call_drop_msg = "DB|D07|" + user_pid + "|" + user_serial + "|" + user_id + "|" + credit + "|" +
+        imsi + "|" + outbound + "|" + simbank_name + "|" + sim_serial_no + "|" + description + "|" +
         deducted_credit + "|" + credit_flag + "|" + area_name + "|" + content + "|" + type + "|" + TYPE + "|" + s_date + "|" + c_date + "|" + e_date + "|" + con_id + "|" + call_result + "|"
 
       console.log(call_drop_msg);
-      write_log("call_drop ERR-CON" : " + call_drop_msg)
+      write_log("call_drop ERR-CON : " + call_drop_msg)
 
       addon_child.send_data(call_drop_msg);
       //call log 쌓기
@@ -400,18 +457,21 @@ function call_drop(dictdata) {
 
       var call_time = e_date - c_date;
       var deducted_credit = global_value.deducted_credit(call_time, unit, value);
-
+      var credit = user_checker[0].credit
+      var user_pid = user_checker[0].user_pid
+      var user_serial = user_checker[0].user_serial
+      var user_id = user_checker[0].user_id
       var credit_flag = 104;
       var call_result = "SUCCESS";
 
-
+      credit = credit - deducted_credit
       realm.write(() => {
-        user_checker[0].credit = user_checker[0].credit - deducted_credit; //크래딧 차감
+        user_checker[0].credit = credit; //크래딧 차감
       });
 
 
 
-      var call_drop_msg = "DB|D07|" + user_checker[0].user_pid + "|" + user_checker[0].user_serial + "|" + user_checker[0].user_id + "|" + user_checker[0].credit + "|" +
+      var call_drop_msg = "DB|D07|" + user_pid + "|" + user_serial + "|" + user_id + "|" + credit + "|" +
         0 + "|" + outbound + "|" + 0 + "|" + 0 + "|" + description + "|" +
         deducted_credit + "|" + credit_flag + "|" + area_name + "|" + content + "|" + type + "|" + TYPE + "|" + s_date + "|" + c_date + "|" + e_date + "|" + con_id + "|" + call_result + "|"
 
@@ -432,7 +492,7 @@ function call_drop(dictdata) {
 
 
     console.log(call_drop_msg);
-    write_log("call_drop is not user or sim" : + call_drop_msg)
+    write_log("call_drop is not user or sim :" + call_drop_msg)
     addon_child.send_data(call_drop_msg);
     //call log 쌓기
   }
