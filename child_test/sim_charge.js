@@ -78,11 +78,12 @@ function CH_classifier(data) {
       recv_Indonesia(data)
       break;
     case '452':
-      test_Vietnam_intergration(data)
       console.log("Vietnam");
+      test_Vietnam_intergration(data)
       break;
     case '414':
       console.log("Myanmar");
+      Myanmar_charge(data)
       break;
     default:
       console.log(data);
@@ -175,6 +176,65 @@ function http_req_parse(url) {
   })
 
 }
+function Myanmar_charge(dictdata) {
+  // https://loadcentral.net/sellapi.do?uid=uid&auth=md5_pwd&pcode=ztest1&to
+  // =09210000001&rrn=123456789012
+  var mcc = dictdata['data1'];
+  var mnc = dictdata['data2'];
+  var imsi = dictdata['data3'];
+  var msisdn = dictdata['data4'];
+  var simbank_name = dictdata['data5'];
+  var charge_amount = 100;
+
+  console.log("Myanmar_charge")
+
+  // var client_pcode = "";
+  // if (typeof global_carrier_pcode[mcc + mnc] == 'undefined') {
+  //   client_pcode = "NONE";
+  //   console.log(client_pcode)
+  // }
+  // else {
+  //   client_pcode = global_carrier_pcode[mcc + mnc];
+  //   console.log(client_pcode)
+  //
+  // }
+  var url = "https://web.everytt.com/mmTT_charge/mmCharge.php?mobile="+msisdn+"&charge_amount="+charge_amount
+  console.log(url)
+  var charge_result = https_req_parse(url)
+
+  charge_result.then(function(result) {
+
+
+
+    let mobile_number = result[0]; // result reference number
+    let RESP = result[3]; // success fail flag
+
+    console.log("mobile_number " + mobile_number)
+    console.log("RESP " + RESP)
+
+    //0 일경우 성공
+    var now = Date.now()
+    if (RESP == "Success") {
+    // if(true){
+      //성공일 경우 realm db 업데이트할 내용들 chiil_process에 넘기고 mysql DB에 넣어주기위해 DBMSG을 DB_CHILD에 전달한다.
+      var msg = "MP|CHARGE|" + 0 + "|" + imsi + "|" + charge_amount + "|";
+      var dbmsg = "DB|CHARGE|" + 0 + "|" + simbank_name + "|" + imsi + "|" + msisdn + "|" + charge_amount + "|" + now + "|";
+      console.log(msg)
+      console.log(dbmsg)
+
+      addon_master.send_data(msg);
+      addon_db.send_data(dbmsg);
+
+    }
+    else {
+      // 실패에 대한 결과를 mysql DB에 넣어주기위해 DBMSG을 DB_CHILD에 전달한다.
+      var dbmsg = "DB|CHARGE|" + 1 + "|" + simbank_name + "|" + imsi + "|" + msisdn + "|" + now + "|6|";
+      addon_db.send_data(dbmsg);
+      console.log(dbmsg)
+    }
+  })
+}
+
 function test_Vietnam_intergration(dictdata) {
   // https://loadcentral.net/sellapi.do?uid=uid&auth=md5_pwd&pcode=ztest1&to
   // =09210000001&rrn=123456789012

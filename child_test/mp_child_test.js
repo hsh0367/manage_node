@@ -5,14 +5,28 @@ var addon_child = require('bindings')('addon_child');
 addon_child.setConnect(5555, "127.0.0.1");
 
 let realm = new Realm({
-  schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST],
-  schemaVersion: 20
+  schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
+  schemaVersion: 35
 });
+require('date-utils');
+var fs = require('fs');
+var options = {
+  encoding: 'utf8',
+  flag: 'a'
+};
 
+function write_log(data) {
+  var dt = new Date();
+
+  var d = dt.toFormat('YYYY-MM-DD HH24:MI:SS');
+  var dd = dt.toFormat('YYYY-MM-DD');
+  fs.writeFile('./log/child/policy_child_log' + dd + ".txt", '[' + d + ']' + data + '\n', options, function(err) {});
+}
 process.on('message', (value) => {
   console.log("mp is on");
   command_classifier(value.data);
 });
+
 function command_classifier(data) {
   switch (data['data1']) {
     case 'PAGING': //테이블 체크
@@ -22,8 +36,23 @@ function command_classifier(data) {
       break;
     case 'PORT_ARRANGE': //회원가입
       //call function
-      console.log("CALLIN");
+      console.log("PORT_ARRANGE");
       port_arrange(data);
+      break;
+    case 'BALANCE': //테이블 체크
+      //call function
+      console.log("BALANCE ");
+      sim_balance_check(data);
+      break;
+    case 'MSISDN': //테이블 체크
+      //call function
+      console.log("MSISDN ");
+      sim_msisdn_check(data);
+      break;
+    case 'CHARGE': //테이블 체크
+      //call function
+      console.log("CHARGE");
+      sim_charge(data);
       break;
     default:
       console.log("[CALL] not find sub command");
@@ -66,13 +95,26 @@ function mp_paging(dictdata) {
 
 
   if (user_sim_checker.length > 0) {
+    var imsi = user_sim_checker[0].imsi;
+    var imei = user_sim_checker[0].imei;
+    var tmsi = user_sim_checker[0].tmsi;
+    var kc = user_sim_checker[0].kc;
+    var cksn = user_sim_checker[0].cksn;
+    var msisdn = user_sim_checker[0].msisdn;
+    var sim_id = user_sim_checker[0].sim_id;
+    var sim_serial_no = user_sim_checker[0].sim_serial_no;
+    var lac = user_sim_checker[0].lac;
+    var arfcn = user_sim_checker[0].arfcn;
+    var cell_id = user_sim_checker[0].cell_id;
+    var bsic = user_sim_checker[0].bsic;
 
-    var msg = "MP|PAGING|" + seq + "|" + user_sim_checker[0].imsi + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|" + user_sim_checker[0].lac + "|" + channel + "|" + mi_type + "|" + user_sim_checker[0].arfcn + "|" + user_sim_checker[0].cell_id + "|" + user_sim_checker[0].bsic + "|"
-    process.send(msg);
+
+    var msg = "MP|PAGING|" + seq + "|" + imsi + "|" + imei + "|" + tmsi + "|" + kc + "|" + cksn + "|" + msisdn + "|" + sim_id + "|" + sim_serial_no + "|" + lac + "|" + channel + "|" + mi_type + "|" + arfcn + "|" + cell_id + "|" + bsic + "|"
+    process.send({ data : msg, port : dictdata['port']});
   }
   else {
     var msg = "MP|PAGING|" + seq + "|" + sim_imsi + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + channel + "|" + mi_type + "|" + 0 + "|" + 0 + "|" + 0 + "|"
-    process.send(msg);
+    process.send({ data : msg, port : dictdata['port']});
   }
 
 
@@ -91,9 +133,142 @@ function port_arrange(dictdata) {
   var cur_time = command_line['data5'];
   var call_out_in_check = command_line['data6'];
   var call_state = command_line['data7'];
+}
+
+function sim_balance_check(dictdata) {
+  //mysql 업데이트 해주어야 한다.
+  // MP|BALANCE|conID|IMSI|result|balance|    result  : 1 성공 / 0 -실패 / -1  채널로스 실패
+  //성공시 realm에 업데이트 해주어야 한다.
+  var conID = dictdata['data2']
+  var imsi = dictdata['data3']
+  var result = dictdata['data4']
+  var balance = parseInt(dictdata['data5']);
+  var user_sim_check = 'imsi = "' + imsi + '"';
+  let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+
+  console.log(dictdata)
+
+  var sim_blance = user_sim_checker[0].sim_blance;
+  if (result == 1) {
+    sim_blance = balance
+    if (user_sim_checker.length > 0) {
+      realm.write(() => {
+
+        user_sim_checker[0].sim_balance = sim_blance;
+        user_sim_checker[0].etc_blance_flag = 0;
+
+      })
+      //mysql 업데이트 해주어야 한다.
+      var dbmsg = "DB|ETC|BALANCE|" + imsi + "|" + sim_blance + "|";
+      addon_child.send_data(dbmsg);
+    }
+    else {
+      //imsi is not found
+      console.log("MP sim_balance_check : is not found sim imsi " + imsi)
+      write_log("MP sim_balance_check : is not found sim imsi " + imsi);
+    }
+  }
+  else {
+    //mysql 실패결과를 업데이트 해주어야 한다.
+    var dbmsg = "DB|ETC|ERR|" + imsi + "|7|";
+    addon_child.send_data(dbmsg);
+
+  }
+
+}
+
+function filterInt(value) {
+  // ^(\+)?([0-9]*)$
+  if (/^(\+)?([0-9]+|Infinity)$/.test(value))
+    return value;
+  return NaN;
+}
+
+function sim_msisdn_check(dictdata) {
+  //mysql 업데이트 해주어야 한다.
+  // MP|MSISDN|conID|IMSI|result|MSISDN|    result  : 1 성공 / 0 -실패 / -1  채널로스 실패
+  //성공시 realm에 업데이트 해주어야 한다.
+  var conID = dictdata['data2']
+  var imsi = dictdata['data3']
+  var result = dictdata['data4']
+  var msisdn = dictdata['data5']
+  var user_sim_check = 'imsi = "' + imsi + '"';
+  let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+  // var  country_code_checker= country_code_check(msisdn);
+  var country_check = 'mcc = "' + user_sim_checker[0].mcc + '"';
+  let country_checker = realm.objects('GLOBALCARRIER').filtered(country_check);
+  console.log("aaaaaa - " + msisdn)
+  msisdn = filterInt(msisdn);
+  console.log("ssssss - " + msisdn)
+  var msisdn_length = msisdn.length;
 
 
+  if (msisdn != "0" && msisdn != NaN) {
+
+    if (country_checker.length > 0 && user_sim_checker.length > 0) {
+      var code = country_checker[0].country_code;
+      msisdn = "0" + msisdn.substring(code.length, msisdn_length)
+    }
+    else {
+      console.log("sim_msisdn_check : is not msisdn")
+    }
+  }
+  if (result == 1) {
+    if (user_sim_checker.length > 0) {
+      realm.write(() => {
+        user_sim_checker[0].msisdn = msisdn;
+        user_sim_checker[0].etc_msisdn_flag = 0;
+      })
+      //mysql 업데이트 해주어야 한다.
+      var dbmsg = "DB|ETC|MSISDN|" + imsi + "|" + msisdn + "|";
+      addon_child.send_data(dbmsg);
+    }
+    else {
+      //imsi is not found
+      console.log("MP sim_msisdn_check : is not found sim imsi " + imsi);
+      write_log("MP sim_msisdn_check : is not found sim imsi " + imsi);
+    }
+  }
+  else {
+    //mysql 실패결과를 업데이트 해주어야 한다.
+    var dbmsg = "DB|ETC|ERR|" + imsi + "|5|";
+    addon_child.send_data(dbmsg);
+  }
+}
+
+function sim_charge(dictdata) {
+  //mysql 업데이트 해주어야 한다.
+  // MP|CHARGE|conID|IMSI|result|충전금액|    result  : 1 성공 / 0 -실패 / -1  채널로스 실패
+  //성공시 realm에 업데이트 해주어야 한다.
+  var conID = dictdata['data2']
+  var imsi = dictdata['data3']
+  var result = dictdata['data4']
+  var charging_balance = parseInt(dictdata['data5'])
+  if (result == 1) {
+    if (user_sim_checker.length > 0) {
 
 
+      realm.write(() => {
 
+        user_sim_checker[0].sim_balance = user_sim_checker[0].sim_balance + charging_balance;
+        user_sim_checker[0].etc_charge_flag = 0;
+
+      })
+      //mysql 업데이트 해주어야 한다.
+      var dbmsg = "DB|ETC|CHARGE|" + imsi + "|" + charging_balance + "|";
+      addon_child.send_data(dbmsg);
+
+    }
+    else {
+      //imsi is not found
+      console.log("MP sim_charge : is not found sim imsi " + imsi);
+      write_log("MP sim_charge : is not found sim imsi " + imsi);
+    }
+  }
+  else {
+    //mysql 실패결과를 업데이트 해주어야 한다.
+    var dbmsg = "DB|ETC|ERR|" + imsi + "|6|";
+    addon_child.send_data(dbmsg);
+
+  }
 }

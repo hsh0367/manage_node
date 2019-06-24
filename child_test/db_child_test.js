@@ -1,9 +1,8 @@
 console.log("[DB] ON")
-var Realm = require('realm');
 const crypto = require('crypto');
 const chema = require('../global.js')
 const global_value = require('../global_value.js')
-const DB = require('/home/ubuntu/test-addon/database.js')
+const DB = require('/home/ubuntu/manage_node/child_test/database.js')
 var database = new DB();
 var mysql = require('mysql');
 var Queue = require('bull');
@@ -11,12 +10,6 @@ var DbDataQueue = new Queue('DbDataQueue');
 var DbJobQueue = new Queue('DbJobQueue');
 var addon = require('bindings')('addon');
 addon.setCallback(5555, data_test);
-
-var simlist = [];
-let realm = new Realm({
-  schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST],
-  schemaVersion: 20
-});
 
 
 require('date-utils');
@@ -31,7 +24,7 @@ function write_log(data) {
 
   var d = dt.toFormat('YYYY-MM-DD HH24:MI:SS');
   var dd = dt.toFormat('YYYY-MM-DD');
-  fs.writeFile('./log/child/db_child_log' + dd + ".txt", '[' + d + ']' + data + '\n', options, function(err) {});
+  fs.writeFile('../log/child/db_child_log' + dd + ".txt", '[' + d + ']' + data + '\n', options, function(err) {});
 }
 
 function timeConverter(UNIX_timestamp) {
@@ -56,7 +49,6 @@ DbJobQueue.process(function(job, done) {
 function data_test(msg) {
   console.log(msg);
   console.log("Data in")
-  console.log(msg)
   DbDataQueue.add({
     msg: msg
   });
@@ -84,7 +76,7 @@ function parser(data) {
   var command_divied = str.split("END");
   var job_que = [];
   command_divied.forEach(function(dummy) {
-    var parser_data = dummy.split("|");
+    var parser_data = dummy.trim().split("|");
     var dict = {};
     for (var i = 0; i < parser_data.length; i++) {
       if (i === 0) { //command
@@ -101,6 +93,7 @@ function parser(data) {
 };
 
 function DB_classifier(data) {
+  console.log("DB_classifier")
   switch (data['data1']) {
 
     case 'D00':
@@ -149,161 +142,66 @@ function DB_classifier(data) {
       console.log("sms");
       sms_result(data);
       break;
-
-    case 'D11': //realm mysql 데이터베이스 동기화
+    case 'VOICE': //voip-key 갱신
       //call function
-      DB_synchronization(data);
+      console.log("VOICE");
+      voice_result(data);
+      break;
+    case 'ETC': //voip-key 갱신
+      //call function
+      console.log("ETC");
+      etc_handler(data);
       break;
     case 'QUERY': //realm mysql 데이터베이스 동기화
       //call function
-      console.log("DB_classifier", data['data2'])
+      console.log("QUERY")
       query_processor(data);
-      break;
-    case 'CREDIT': //realm mysql 데이터베이스 동기화
-      //call function
-      credit_update(data);
-      break;
-    case 'SIM': //realm mysql 데이터베이스 동기화
-      //call function
-      sim_expire_date_update(data);
       break;
     case 'SIM_CH': //realm mysql 데이터베이스 동기화
       //call function
       sim_info_change(data);
+      break;
+    case 'MSG_USSD': //realm mysql 데이터베이스 동기화
+      //call function
+      msg_ussd(data);
       break;
     default:
       console.log(data);
   }
 }
 
-function sim_info_change(dictdata) {
-  var command_line = dictdata;
-  var imsi = command_line['data2'];
-  var imsi = command_line['data2'];
+function msg_ussd(dictdata) {
+  var imsi = dictdata['data2']
+  var contents = dictdata['data3']
+  var time = parseInt(dictdata['data4']) * 1000
+  var reg_date = timeConverter(time);
+  var phone_number = dictdata['data5']
+
+
+  var sql = "INSERT INTO tb_ussd_data ( imsi  , contents ,  reg_date, phone_number ) values ( \"" + imsi + "\", \"" + contents + "\", \"" + reg_date + "\"" + phone_number + "\")"
+  query_Launcher(sql);
 }
 
 
-function DB_synchronization(dictdata) {
-  var command_line = dictdata;
-  var chosechema = command_line['data2'];
-  if (chosechema == 'SIM') {
-    var sql = "SELECT * FROM tb_sim_list WHERE PID = 2433 OR PID = 2434 OR PID = 2435;";
-    //sql SELECT pid, id,  sim_serial_no, imsi, simbank_name FORM tb_sim_list 2433, 2434
 
-    connection.query(sql, function(err, result, fields) {
-      if (err) throw err;
-      // simlist = result;
-      console.log("simlist length : " + result.length);
-      write_log("DB_synchronization sim")
 
-      for (var i = 0; i < result.length; i++) {
-        var sim_check = 'sim_pid =  \"' + result[i].pid + '\" AND imsi = \"' + result[i].imsi + '\"';
-        let sim_checker = realm.objects('SIM').filtered(sim_check);
-        var tt = result.length - i;
-        console.log("sim_checker length : " + tt);
-        if (sim_checker.isEmpty()) {
-          realm.write(() => {
-            var sim_expire_date = new Date(result[i].sim_expire_date).getTime()
-            let sim = realm.create('SIM', {
-              sim_pid: result[i].pid,
-              sim_id: result[i].id,
-              sim_serial_no: result[i].sim_serial_no,
-              simbank_name: result[i].simbank_name,
-              imsi: result[i].imsi,
-              mobileType: result[i].mobileType,
-              msisdn: result[i].sim_no,
-              imei: result[i].imei,
-              sim_expire_date: sim_expire_date,
-              mcc: result[i].mcc,
-              mnc: result[i].mnc,
+function voice_result(dictdata) {
+  // DB|VOICE|call_type|codec|mobile|port|recv_app|recv_mobile|app_addr|mobile_addr|s_date|e_date|
+  var call_type = dictdata['data2']
+  var codec = dictdata['data3']
+  var mobile = dictdata['data4']
+  var port = dictdata['data5']
+  var recv_app = dictdata['data6']
+  var recv_mobile = dictdata['data7']
+  var app_addr = dictdata['data8']
+  var mobile_addr = dictdata['data9']
+  var s_date = parseInt(dictdata['data10'])
+  var e_date = parseInt(dictdata['data11'])
 
-            });
-          });
-        }
-        else {
-          console.log("이미 있는 sim 입니다.")
-          write_log("DB_synchronization sim : 이미 있는 sim 입니다")
-        }
-      }
-      console.log("DB_synchronization sim end");
-      write_log("DB_synchronization sim end")
-    });
-  }
-  else if (chosechema == 'USER') {
-
-    var sql = "SELECT id, pid FROM tb_user_test;";
-    //sql SELECT pid, id,  sim_serial_no, imsi, simbank_name FORM tb_sim_list
-    write_log("DB_synchronization user")
-
-    connection.query(sql, function(err, result, fields) {
-      if (err) throw err;
-      // simlist = result;
-      console.log("user length : " + result.length);
-      realm.objects('USER');
-
-      for (var i = 0; i < result.length; i++) {
-        var user_check = 'user_pid =  \"' + result[i].pid + '\"';
-        let user_checker = realm.objects('USER').filtered(user_check);
-        if (user_checker.length == 0) {
-          realm.write(() => {
-            let sim = realm.create('USER', {
-              user_pid: result[i].pid,
-              user_id: result[i].id,
-            });
-
-          });
-        }
-        else {
-          console.log("이미 있는 user pid 입니다.")
-          write_log("DB_synchronization USER : 이미 있는 user pid 입니다")
-
-        }
-      }
-    });
-    console.log("DB_synchronization end");
-  }
-  else if (chosechema == 'RATE') {
-    var sql = "SELECT area_name, area_no, unit, value, pid FROM tb_rate;";
-    write_log("DB_synchronization RATE")
-
-    connection.query(sql, function(err, result, fields) {
-
-      if (err) throw err;
-      // simlist = result;
-      console.log("rate length : " + result.length);
-      realm.objects('RATE');
-
-      let rate_length = realm.objects('RATE').length;
-
-      for (var i = 0; i < result.length; i++) {
-        var rate_check = 'id =  \"' + result[i].pid + '\"';
-        let rate_checker = realm.objects('RATE').filtered(rate_check);
-        console.log("rate " + i + "  : " + parseFloat(result[i].value.toFixed(3)))
-        if (rate_checker.length == 0) {
-          realm.write(() => {
-            let rate = realm.create('RATE', {
-              id: result[i].pid,
-              area_no: result[i].area_no,
-              area_name: result[i].area_name,
-              call_value: parseFloat(result[i].value.toFixed(3)),
-              call_unit: result[i].unit,
-            });
-
-          });
-        }
-        else {
-          console.log("이미 있는 rate 입니다.")
-          write_log("DB_synchronization RATE : 이미 있는 rate 입니다")
-
-        }
-      }
-    });
-    console.log("DB_synchronization end");
-    write_log("DB_synchronization end RATE")
-
-  }
-
+  var sql = "INSERT INTO tb_voip_info(call_type,codec, mobile, port, recv_app, recv_mobile, app_addr, mobile_addr, s_date, e_date) VALUES (" + call_type + "," + codec + ",\"" + mobile + "\"," + port + "," + recv_app + ", " + recv_mobile + ",\"" + app_addr + "\",\"" + mobile_addr + "\",\"" + timeConverter(s_date * 1000) + "\",\"" + timeConverter(e_date * 1000) + "\");";
+  query_Launcher(sql);
 }
+
 
 function view() {
   connection.query("SELECT * FROM tb_sim_list_test", function(err, result, fields) {
@@ -386,65 +284,8 @@ function query_processor(dictdata) {
   var command_line = dictdata;
   var command = command_line['command'];
   var query = command_line['data2'];
-  // connection.query(query, function(err, rows, fields) {
-  //   if (!err)
-  //     console.log('The solution is: ', rows);
-  //   else {
-  //     console.log('Error while query_processor Query.');
-  //     console.log(query);
-  //   }
-  // });
-
   console.log("query_processor ", query)
   query_Launcher(query);
-}
-
-function credit_update(dictdata) {
-  var command_line = dictdata;
-  var command = command_line['command'];
-  var num = command_line['data2'];
-  var user_pid = parseInt(command_line['data3']);
-  var user_check = 'user_pid = "' + user_pid + '"';
-  let user_checker = realm.objects('USER').filtered(user_check);
-  try {
-    realm.write(() => {
-      user_checker[0].credit = parseInt(num);
-    })
-    var sql = "UPDATE tb_user_test set credit = " + num + " WHERE pid  = " + user_pid;
-
-    query_Launcher(sql);
-
-  }
-  catch (e) {
-    console.log("credit_update error")
-  }
-}
-
-function sim_expire_date_update(dictdata) {
-  var command_line = dictdata;
-  var command = command_line['command'];
-  var sim_check = 'imsi != ""  AND user_id = "0" AND user_pid = 0';
-  let sim_checker = realm.objects('SIM').filtered(sim_check);
-  var now = Date.now();
-  var seven = 86400000 * 15;
-  var temp = now + seven;
-
-
-  try {
-    realm.write(() => {
-
-      for (var i = 0; i < sim_checker.length; i++) {
-        sim_checker[i].sim_expire_date = temp;
-      }
-    })
-
-    // var sql = "UPDATE tb_sim_list_test set sim_expire_date = " + temp;
-    // query_Launcher(sql);
-    console.log("sim end")
-  }
-  catch (e) {
-    console.log("credit_update error")
-  }
 }
 
 function query_Launcher(query) {
@@ -462,12 +303,6 @@ function query_Launcher(query) {
 }
 
 function buy_sim(dictdata) {
-
-  // var buy_sim_msg = "DB|D05|" + user_checker[0].credit + "|" + user_checker[0].user_pid + "|" +
-  //   +"|" + timeConverter(temp) + "|" + user_sim_checker[0].imsi + "|" +
-  //   user_checker[0].user_id + "|" + user_checker[0].user_serial + "|" +user_sim_checker[0].msisdn +
-  //   "|500|0|,SIM|" + user_checker[0].credit * 10 + "|100|" + timeConverter(now) +"|" + description+"|"
-  //
 
   var command_line = dictdata;
   var sub_command = command_line['data1'];
@@ -540,9 +375,6 @@ function top_up(dictdata) {
     var db_credit_history_msg = "INSERT INTO tb_credit_history_test (id, user_serial,credit, type, credit_flag , description , reg_date , user_credit, event_flag , mobile_number, topup_type, join_app_type , content ) VALUES ('" + user_id + "','" + user_serial + "'," + charge_credit + "," + type + "," + credit_flag + "," + description + ",'" + reg_date + "'," + user_credit + "," + event_flag + ",'" + mobile_number + "','" + description + "','" + topup_type + "'," + join_app_type + ",'" + content + "')";
     var db_charge_list_msg = "INSERT INTO tb_charge_list (id, user_serial,charge_credit, reg_date, email ) VALUES ('" + user_id + "','" + user_serial + "'," + charge_credit + ",'" + reg_date + "'" + description + "','" + credit_pid + "')"
 
-    //user_checker[0].user_id + "|" + user_checker[0].user_serial + "|" + credit + "|1|1|" + description + "|" + timeConverter(Date.now()) + "|" + user_checker[0].credit + "|" + event_flag + "|" + user_checker[0].user_sim_imsi + "ACCOUNT|0|TOPUP|";
-    //var db_charge_list_msg = " DB|QUERY|INSERT INTO tb_charge_list (id, user_serial,charge_credit, reg_date, email ) VALUES ('" + user_checker[0].user_id + "','" + user_checker[0].user_serial + "','7500','" + timeConverter(Date.now()) + "','" + description + "')|"
-    //var db_charge_list_msg = "user_checker[0].user_id + "|" + user_checker[0].user_serial + "|" + credit + "|" + timeConverter(Date.now()) + "|" + description + "|"
     write_log("top_up  : " + db_user_msg);
     write_log("top_up  : " + db_credit_history_msg);
     write_log("top_up  : " + db_charge_list_msg);
@@ -674,6 +506,7 @@ function call_drop(dictdata) {
     query_Launcher(db_call_log_msg);
   }
 }
+
 function sms_result(dictdata) {
   var sub_command = dictdata['data2'];
   var user_pid = dictdata['data3'];
@@ -735,7 +568,7 @@ function sms_result(dictdata) {
       catch (e) {
         console.log(e);
         console.log("ERROR DB-BUY_SIM : not found sub_command");
-        write_log("SMS_OUT ERR-USER db_sms_log_msg  error : "+e);
+        write_log("SMS_OUT ERR-USER db_sms_log_msg  error : " + e);
       }
     }
     else {
@@ -746,6 +579,63 @@ function sms_result(dictdata) {
       query_Launcher(db_sms_log_msg);
     }
   }
+}
+
+function etc_handler(dictdata) {
+  // "ETC|BALANCE|imsi|balance|"
+  // "ETC|MSISDN|imsi|msisdn|"
+  // "ETC|CHARGE|imsi|charging_balance|"
+  // "ETC|ERR|imsi|5|"
+  // "ETC|ERR|imsi|6|"
+  // "ETC|ERR|imsi|7|"
+  console.log("etc_handler is on")
+  var sub_command = dictdata['data2'];
+  if (sub_command == "BALANCE") {
+    var imsi = dictdata['data3'];
+    var balance = dictdata['data4'];
+
+
+    var msg = "UPDATE tb_sim_list SET  balance = " + balance + " WHERE  imsi = \"" + imsi + "\"";
+    console.log("DB ETC_HANDLER : " + msg);
+    write_log("DB ETC_HANDLER : " + msg);
+    query_Launcher(msg);
+  }
+  else if (sub_command == "MSISDN") {
+    var imsi = dictdata['data3'];
+    var msisdn = dictdata['data4'];
+
+    var msg = "UPDATE tb_sim_list_test SET  sim_no = \"" + msisdn + "\" WHERE  imsi = \"" + imsi + "\"";
+    console.log("DB ETC_HANDLER : " + msg);
+    write_log("DB ETC_HANDLER : " + msg);
+    query_Launcher(msg);
+
+  }
+  else if (sub_command == "CHARGE") {
+    var imsi = dictdata['data3'];
+    var charging_balance = dictdata['data4'];
+
+    var msg = "UPDATE tb_sim_list_test SET  balance = balance + " + charging_balance + " WHERE  imsi = \"" + imsi + "\"";
+    console.log("DB ETC_HANDLER : " + msg);
+    write_log("DB ETC_HANDLER : " + msg);
+    query_Launcher(msg);
+
+  }
+  else if (sub_command == "ERR") {
+    var imsi = dictdata['data3'];
+    var err_code = dictdata['data4'];
+
+    var msg = "UPDATE tb_sim_list_test SET   sim_error = \"" + err_code + "\" WHERE  imsi = \"" + imsi + "\"";
+    console.log("DB ETC_HANDLER : " + msg);
+    write_log("DB ETC_HANDLER : " + msg);
+    query_Launcher(msg);
+
+  }
+  else {
+    console.log("DB ETC ERROR : is not subcommand");
+    write_log("DB ETC ERROR : is not subcommand")
+  }
+
+
 }
 
 DbDataQueue.process(function(job, done) {

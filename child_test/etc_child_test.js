@@ -6,7 +6,7 @@ const global_value = require('../global_value.js')
 var mysql = require('mysql');
 var Queue = require('bull');
 
-var check_que = new Queue('check_que');
+var etc_que = new Queue('etc_que');
 var addon = require('bindings')('addon');
 var addon_child = require('bindings')('addon_child');
 addon_child.setConnect(5555, "127.0.0.1");
@@ -27,7 +27,7 @@ connection.connect(function(err) {
 var simlist = [];
 let realm = new Realm({
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
-  schemaVersion: 24
+  schemaVersion: 35
 });
 
 require('date-utils');
@@ -50,9 +50,9 @@ process.on('message', (value) => {
   ETC_classifier(value.data);
 });
 
-check_que.process(function(job, done) {
-  console.log("check_que : " + job.data.imsi)
-  console.log("check_que : " + job.data.flag)
+etc_que.process(function(job, done) {
+  console.log("etc_que : " + job.data.imsi)
+  console.log("etc_que : " + job.data.flag)
   var flag = job.data.flag;
   var imsi = job.data.imsi;
   var flag_point = 99;
@@ -61,16 +61,16 @@ check_que.process(function(job, done) {
 
   var now = Date.now();
   // flag = o 일경우 시도했으나 처리가 되지 않았다  falg = 1 일 경우 시도가 되었다.
-  console.log("ETC balacne, msisdn, charge check_que id : " + job.id + " imsi  : " + job.data.imsi)
+  console.log("ETC balacne, msisdn, charge etc_que id : " + job.id + " imsi  : " + job.data.imsi)
   if (user_sim_checker.length > 0) {
 
-    var etc_blance_flag =user_sim_checker[0].etc_blance_flag
-    var etc_msisdn_flag =user_sim_checker[0].etc_msisdn_flag
-    var etc_charge_flag =user_sim_checker[0].etc_charge_flag
+    var etc_blance_flag = user_sim_checker[0].etc_blance_flag
+    var etc_msisdn_flag = user_sim_checker[0].etc_msisdn_flag
+    var etc_charge_flag = user_sim_checker[0].etc_charge_flag
 
     if (flag == "etc_blance_flag") {
 
-      if (etc_blance_flag> 3) {
+      if (etc_blance_flag > 3) {
         //MYSQL에 표시해 주어야된다.
         console.log("MYSQL에 표시해 주어야된다.");
         etc_blance_flag = 0
@@ -85,25 +85,25 @@ check_que.process(function(job, done) {
           try {
             etc_blance_flag = etc_blance_flag + 1
             realm.write(() => {
-              user_sim_checker[0].etc_blance_flag =etc_blance_flag + 1
+              user_sim_checker[0].etc_blance_flag = etc_blance_flag + 1
             });
-            write_log("check_que :  new try etc_msisdn  imsi : " + job.data.imsi)
+            write_log("etc_que :  new try etc_msisdn  imsi : " + job.data.imsi)
             sim_balance_check(imsi);
           }
           catch (e) {
             console.log(e)
-            write_log("check_que etc_msisdn_flag error : " + job.data.imsi + " error : " + e)
+            write_log("etc_que etc_msisdn_flag error : " + job.data.imsi + " error : " + e)
           }
         }
         else {
-          write_log("check_que etc_msisdn_flag success : " + job.data.imsi)
+          write_log("etc_que etc_msisdn_flag success : " + job.data.imsi)
         }
       }
 
     }
     else if (flag == "etc_msisdn_flag") {
 
-      if (etc_msisdn_flag> 3) {
+      if (etc_msisdn_flag > 3) {
         //MYSQL에 표시해 주어야된다.
         console.log("MYSQL에 표시해 주어야된다.");
         etc_msisdn_flag = 0
@@ -120,23 +120,23 @@ check_que.process(function(job, done) {
             realm.write(() => {
               user_sim_checker[0].etc_msisdn_flag = etc_msisdn_flag
             });
-            write_log("check_que :  new try etc_msisdn  imsi : " + job.data.imsi)
+            write_log("etc_que :  new try etc_msisdn  imsi : " + job.data.imsi)
             sim_msisdn_check(imsi);
 
           }
           catch (e) {
             console.log(e)
-            write_log("check_que etc_msisdn_flag error : " + job.data.imsi + " error : " + e)
+            write_log("etc_que etc_msisdn_flag error : " + job.data.imsi + " error : " + e)
           }
         }
         else {
-          write_log("check_que etc_msisdn_flag success : " + job.data.imsi)
+          write_log("etc_que etc_msisdn_flag success : " + job.data.imsi)
         }
       }
 
     }
     else if (flag == "etc_charge_flag") {
-      if (etc_charge_flag> 3) {
+      if (etc_charge_flag > 3) {
         //MYSQL에 표시해 주어야된다.
         console.log("MYSQL에 표시해 주어야된다.");
         etc_charge_flag = 0
@@ -153,24 +153,24 @@ check_que.process(function(job, done) {
             realm.write(() => {
               user_sim_checker[0].etc_charge_flag = etc_charge_flag
             });
-            write_log("check_que :  new try etc_charge  imsi : " + job.data.imsi)
+            write_log("etc_que :  new try etc_charge  imsi : " + job.data.imsi)
             sim_charge(imsi);
           }
           catch (e) {
             console.log(e)
-            write_log("check_que etc_charge_flag error : " + job.data.imsi + " error : " + e)
+            write_log("etc_que etc_charge_flag error : " + job.data.imsi + " error : " + e)
           }
 
         }
         else {
-          write_log("check_que etc_charge_flag success : " + job.data.imsi)
+          write_log("etc_que etc_charge_flag success : " + job.data.imsi)
         }
       }
     }
   }
   else {
-    console.log("ETC check_que error : is not found sim")
-    write_log("ETC check_que error : is not found sim")
+    console.log("ETC etc_que error : is not found sim")
+    write_log("ETC etc_que error : is not found sim")
   }
   done();
 });
@@ -215,11 +215,11 @@ function ETC_classifier(data) {
       console.log("death");
       death(data);
       break;
-      case 'PDEATH': //realm mysql 데이터베이스 동기화point_death
-        //call function
-        console.log("PDEATH");
-        point_death(data);
-        break;
+    case 'PDEATH': //realm mysql 데이터베이스 동기화point_death
+      //call function
+      console.log("PDEATH");
+      point_death(data);
+      break;
     case 'CREDIT': //realm mysql 데이터베이스 동기화
       //call function
       credit_update(data);
@@ -231,6 +231,14 @@ function ETC_classifier(data) {
     case 'MSISDN': //realm mysql 데이터베이스 동기화
       //call function
       sim_msisdn_check(data);
+      break;
+    case 'MYSQL': //realm mysql 데이터베이스 동기화
+      //call function
+      send_mysql(data);
+      break;
+    case 'Z': //realm mysql 데이터베이스 동기화
+      //call function
+      tmsi_zero();
       break;
     default:
       console.log(data);
@@ -352,59 +360,113 @@ function DB_synchronization(dictdata) {
   }
   else if (chosechema == 'CARRIER') {
     console.log("CARRIER");
-    var array = fs.readFileSync('./global_carrier.txt').toString().replace(/[\r]+/g, '').split("\n");
-    for (var i = 0; i < array.length; i++) {
-      var temp = array[i]
-      var global_carrier = temp.split(","); // 스플릿 오류로 인해 쪼개지지 않고 있어서 오류 발생한다.
-      console.log(global_carrier)
-      if(global_carrier[0] != ''){
 
-        try {
+    try {
 
-          var carrier_id = global_carrier[3] + global_carrier[4];
-          var global_carrier_check = 'carrier_id = ' + parseInt(carrier_id) + '';
+
+      var sql = "SELECT *  FROM tb_global_carrier;";
+      write_log("DB_synchronization GLOBALCARRIER")
+      connection.query(sql, function(err, result, fields) {
+        if (err) throw err;
+        // simlist = result;
+        console.log("GLOBALCARRIER length : " + result.length);
+        for (var i = 0; i < result.length; i++) {
+          var global_carrier_check = 'carrier_id =  \"' + result[i].carrier_id + '\"';
           let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-          if (global_carrier_checker.length == 0 ) {
-
+          if (global_carrier_checker.length == 0) {
             realm.write(() => {
+              let carrier = realm.create('GLOBALCARRIER', {
 
-              realm.create('GLOBALCARRIER', {
-                carrier_id: parseInt(global_carrier[3] + global_carrier[4]),
-                country: global_carrier[0],
-                country_code: global_carrier[1],
-                carrier: global_carrier[2],
-                mcc: global_carrier[3],
-                mnc: global_carrier[4],
-                smsc: global_carrier[5],
-                callout_unit: parseInt(global_carrier[6]),
-                callout_value: parseFloat(global_carrier[7]),
-                callin_unit: parseInt(global_carrier[8]),
-                callin_value: parseFloat(global_carrier[9]),
-                smsout_unit: parseInt(global_carrier[10]),
-                smsout_value: parseFloat(global_carrier[11]),
-                chargin_balance: parseInt(global_carrier[12]),
-                balance_ussd: global_carrier[13],
-                msisdn_ussd: global_carrier[14],
-
+                carrier_id: result[i].carrier_id,
+                country: result[i].country,
+                country_code: result.country_code,
+                carrier: result[i].carrier,
+                mcc: result[i].mcc,
+                mnc: result[i].mnc,
+                smsc: result[i].smsc,
+                callout_unit: result[i].callout_unit,
+                callout_value: result[i].callout_value,
+                callin_unit: result[i].callin_unit,
+                callin_value: result[i].callin_value,
+                smsout_price: result[i].smsout_price,
+                smsin_price: result[i].smsin_price,
+                chargin_amounnt: result[i].chargin_amounnt,
+                balance_ussd: result[i].balance_ussd,
+                msisdn_ussd: result[i].msisdn_ussd,
+                simprice: result[i].sim_price,
+                add_time: result[i].add_time,
+                // LUR_time: parseInt(global_carrier[17],10),
+                LUR_time: result[i].lur_time,
+                lur_check_time: result[i].lur_check_time,
+                etc_check_time: result[i].etc_check_time,
               });
+
             });
           }
           else {
-            console.log("이미있는 global_carrier row 입니다.")
+            console.log("이미 있는 rate 입니다.")
+            write_log("DB_synchronization RATE : 이미 있는 rate 입니다")
+
           }
         }
-        catch (e) {console.log(e)}
+      });
+      console.log("DB_synchronization end GLOBALCARRIER");
+      write_log("DB_synchronization end GLOBALCARRIER")
+
+    }
+    catch (e) {
+      console.log(e)
+    }
+  }
+  else {
+    console.log("global_carrier : is NaN")
+  }
+}
+
+
+function send_mysql(dictdata) {
+  var chosechema = dictdata['data2']
+  if (chosechema == 'CARRIER') {
+    console.log("CARRIER");
+    var array = fs.readFileSync('./global_carrier.txt').toString().split("\n");
+    for (var i = 0; i < array.length - 1; i++) {
+      var temp = array[i]
+      var global_carrier = temp.replace(/(\s*)/g, "").split(","); // 스플릿 오류로 인해 쪼개지지 않고 있어서 오류 발생한다.
+      console.log("sss : " + array)
+
+      console.log(global_carrier)
+
+      try {
+        var carrier_id = global_carrier[3] + global_carrier[4];
+        var global_carrier_check = 'carrier_id = ' + parseInt(carrier_id) + '';
+        let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+
+
+        if (global_carrier_checker.length == 0) {
+          var carrier_id = global_carrier[3] + global_carrier[4]
+          var dbmsg = "DB|QUERY|INSERT INTO tb_global_carrier (carrier_id, country, country_code, carrier, mcc, mnc, smsc, callout_unit, callout_value, callin_unit, callin_value, smsout_price, smsin_price, charge_amount, balance_ussd, msisdn_ussd, sim_price, add_time, lur_time, lur_check_time, etc_check_time) VALUES ( " + carrier_id + ", \"" + global_carrier[0] + "\", \"" + global_carrier[1] + "\", \"" + global_carrier[2] + "\", \"" + global_carrier[3] + "\", \"" + global_carrier[4] + "\" , \"" + global_carrier[5] + "\", " + global_carrier[6] + "," + global_carrier[7] + ", " + global_carrier[8] + "," + global_carrier[9] + ", " + global_carrier[10] + ", " + global_carrier[11] + ", " + global_carrier[12] + ", \"" + global_carrier[13] + "\", \"" + global_carrier[14] + "\", " + global_carrier[15] + ", " + global_carrier[16] + "," + global_carrier[17] + "," + global_carrier[18] + "," + global_carrier[19] + ");|"
+          // var dbmsg = "DB|QUERY|INSERT INTO tb_global_carrier VALUES (" + carrier_id + ",\"" + global_carrier[0] + "\",\"" + global_carrier[1] + "\",\"" + global_carrier[2] + "\",\"" + global_carrier[3] + "\",\"" + global_carrier[4] + "\",\"" + global_carrier[5] + "\"," + global_carrier[6] + "," + global_carrier[7] + "," + global_carrier[8] + "," + global_carrier[9] + "," + global_carrier[10] + "," + global_carrier[11] + "," + global_carrier[12] + ",\"" + global_carrier[13] + "\",\"" + global_carrier[14] + "\"," + global_carrier[15] + "," + global_carrier[16] + "," + global_carrier[17] + "," + global_carrier[18] + "," + global_carrier[19] + ");|"
+
+          console.log("[ETC] DB_synchronization  GLOBALCARRIER : " + dbmsg);
+          write_log("[ETC] DB_synchronization  GLOBALCARRIER : " + dbmsg);
+          addon_child.send_data(dbmsg)
+
+        }
+        else {
+          console.log("이미있는 global_carrier row 입니다. : " + i + "번")
+        }
       }
-      else{
-        console.log("global_carrier : is NaN")
+      catch (e) {
+        console.log(e)
       }
     }
-
-
   }
-
-
 }
+
+
+
+
+
 
 function credit_update(dictdata) {
   var command_line = dictdata;
@@ -454,6 +516,7 @@ function credit_update(dictdata) {
 
 function sim_balance_check(dictdata) {
   var imsi = dictdata['data2'];
+  var port = dictdata['port'];
 
   var user_sim_check = 'imsi = "' + imsi + '"';
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
@@ -465,16 +528,19 @@ function sim_balance_check(dictdata) {
     let user_carrier_checker = realm.objects('GLOBALCARRIER').filtered(user_carrier_check);
     var etc_blance_flag = user_sim_checker[0].etc_blance_flag
     if (user_carrier_checker.length > 0) {
-      var msg = "MP|BALANCE|" + user_sim_checker[0].imsi + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + user_sim_checker[0].lac + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|"+user_carrier_checker[0].balance_ussd+"|"+user_carrier_checker[0].smsc+"|";
+      var msg = "MP|BALANCE|" + user_sim_checker[0].imsi + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + user_sim_checker[0].lac + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|" + user_carrier_checker[0].balance_ussd + "|" + user_carrier_checker[0].smsc + "|$" + port;
       // var msg = "MP|BALANCE|" + user_sim_checker[0].imsi + "|";
 
-      process.send(msg);
+      process.send({
+        data: msg,
+        port: port
+      });
       write_log("[ETC] sim_balance_check : " + msg);
-      check_que.add({
+      etc_que.add({
         imsi: imsi,
         flag: user_sim_checker[0].etc_blance_flag,
       }, {
-        delay: global_value.etc_check_time,
+        delay: user_carrier_checker[0].etc_check_time,
       });
     }
     else {
@@ -492,36 +558,42 @@ function sim_msisdn_check(dictdata) {
   //MP|MSISDN|imsi|imei|tmsi|kc|cksn|lac|simbank_id|sim_serial_no|
   // ussd 커맨드, smsc 맨뒤에 추가
   var imsi = dictdata['data2'];
+  var port = dictdata['port'];
+
+
   var user_sim_check = 'imsi = "' + parseInt(imsi) + '"';
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
   if (user_sim_checker.length > 0) { //imsi 정보가 일치할 경우
     var mcc = user_sim_checker[0].mcc
     var mnc = user_sim_checker[0].mnc
-    var imei =  user_sim_checker[0].imei
+    var imei = user_sim_checker[0].imei
     var tmsi = user_sim_checker[0].tmsi
-    var kc =user_sim_checker[0].kc
-    var cksn =user_sim_checker[0].cksn
-    var lac =user_sim_checker[0].lac
-    var sim_id =user_sim_checker[0].sim_id
-    var sim_serial_no =user_sim_checker[0].sim_serial_no
-    var etc_msisdn_flag =user_sim_checker[0].etc_msisdn_flag
+    var kc = user_sim_checker[0].kc
+    var cksn = user_sim_checker[0].cksn
+    var lac = user_sim_checker[0].lac
+    var sim_id = user_sim_checker[0].sim_id
+    var sim_serial_no = user_sim_checker[0].sim_serial_no
+    var etc_msisdn_flag = user_sim_checker[0].etc_msisdn_flag
 
-    var msisdn_ussd =user_carrier_checker[0].msisdn_ussd
-    var smsc =user_carrier_checker[0].smsc
+    var msisdn_ussd = user_carrier_checker[0].msisdn_ussd
+    var smsc = user_carrier_checker[0].smsc
 
     var user_carrier_check = 'mcc = "' + mcc + '" AND mnc = "' + mnc + '"';
     let user_carrier_checker = realm.objects('GLOBALCARRIER').filtered(user_carrier_check);
 
     if (user_carrier_checker.length > 0) {
 
-      var msg = "MP|MSISDN|" +imsi + "|" + imei + "|" +tmsi + "|" + kc + "|" + cksn + "|" + lac + "|" + sim_id + "|" + sim_serial_no + "|"+msisdn_ussd+"|"+smsc+"|";
-      process.send(msg);
+      var msg = "MP|MSISDN|" + imsi + "|" + imei + "|" + tmsi + "|" + kc + "|" + cksn + "|" + lac + "|" + sim_id + "|" + sim_serial_no + "|" + msisdn_ussd + "|" + smsc + "|";
+      process.send({
+        data: msg,
+        port: port
+      });
       write_log("[ETC] sim_msisdn_check : " + msg);
-      check_que.add({
+      etc_que.add({
         imsi: imsi,
         flag: etc_msisdn_flag,
       }, {
-        delay: global_value.etc_check_time,
+        delay: user_carrier_checker[0].etc_check_time,
       });
     }
     else {
@@ -550,7 +622,7 @@ function sim_msisdn_check(dictdata) {
 //       var msg = "MP|CHARGE|" + user_sim_checker[0].imsi + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + user_sim_checker[0].lac + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|" +
 //         process.send(msg);
 //       write_log("[ETC] sim_charge : " + msg);
-//       check_que.add({
+//       etc_que.add({
 //         imsi: imsi,
 //         flag: user_sim_checker[0].etc_charge_flag,
 //       }, {
@@ -587,12 +659,11 @@ function table_view(dictdata) {
     // console.log(realm.objects('SIM'));
     // var simcheck = 'imsi != ""';
     var now = Date.now();
-    var sim_check = 'msisdn.@size >=8 ';
     // var sim_check = 'imsi != ""  AND user_id = "0" AND user_pid = 0 AND sim_expire_date >"' + now + '"AND msisdn != ""';
     // var match_sim_check = 'imsi.@size >=15 AND msisdn.@size >=8 AND sim_expire_date > "' + now + '"AND expire_match_date < "' + now+'"';
     // var match_sim_check = 'imsi.@size >=15 AND msisdn.@size >=8 AND sim_expire_date > ' + now  + '';
     // console.log(match_sim_check);
-    let sim_checker = realm.objects('SIM').filtered(sim_check);
+    let sim_checker = realm.objects('SIM')
     if (sim_checker.length > 0) {
 
       console.log(sim_checker.length)
@@ -642,6 +713,7 @@ function table_view(dictdata) {
     console.log("table_view command not found");
   }
 }
+
 function point_death(dictdata) {
   var chosechema = dictdata['data2'];
   var id = dictdata['data3'];
@@ -746,4 +818,14 @@ function death(dictdata) {
     console.log(err)
     write_log("policy_child death err: " + err)
   }
+}
+
+
+function tmsi_zero() {
+  var user_sim_check = 'imsi =  "' + 510108042298969 + '"';
+  var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+  realm.write(() => {
+
+    user_sim_checker[0].tmsi = "0"
+  })
 }

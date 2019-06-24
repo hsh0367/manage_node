@@ -2,10 +2,11 @@ console.log("[PARSING] ON")
 function parser(data) {
   console.log("paser start")
   var str = data;
-  console.log("ssssss : "+data)
+  console.log("PARSING : "+data)
 
-
-  var command_divied = str.split(",");
+  var temp = str.split("$")
+  var port = temp[1];
+  var command_divied =  temp[0].split(",");
   var job_que = [];
   command_divied.forEach(function(dummy) {
     var parser_data = dummy.split("|");
@@ -18,7 +19,7 @@ function parser(data) {
       }
     }
     if(Object.keys(dict).length>0){
-
+      dict['port'] = port;
       job_que.push(dict);
     }
   });
