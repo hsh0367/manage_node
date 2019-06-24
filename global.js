@@ -50,6 +50,10 @@ const Sim_Imsi_Schema = {
     charging: { type: 'int', default: 0 }, // 충전중인지 플래그
     sim_type: { type: 'int', default: 0 }, //0 – 집단형, 1- 개인형
     lur_check: { type: 'int', default: 0 }, //0 – lur 시도 ok, 1- lur 시도 no
+
+    etc_blance_flag: {type : 'int', default : 0 }, // flag = o 일경우 시도했으나 처리가 되지 않았다  falg = 1 일 경우 시도가 되었다.
+    etc_msisdn_flag: {type : 'int', default : 0 },// flag = o 일경우 시도했으나 처리가 되지 않았다  falg = 1 일 경우 시도가 되었다.
+    etc_charge_flag: {type : 'int', default : 0 },// flag = o 일경우 시도했으나 처리가 되지 않았다  falg = 1 일 경우 시도가 되었다.
   }
 };
 
@@ -136,6 +140,38 @@ const Connector_Info_Schema = {
     paging_seq: { type: 'int', default: 0 },
   }
 };
+const Global_Carrier_Schema = {
+  name: 'GLOBALCARRIER',
+  primaryKey: 'carrier_id',
+  properties : {
+    carrier_id : {type : 'int' , default : 0},
+    country : {type : 'string' , default : '0'},
+    country_code : {type : 'string' , default : '0'},
+    carrier :  {type : 'string' , default : '0'},
+    mcc : {type : 'string' , default : '0'},
+    mnc : {type : 'string' , default : '0'},
+    smsc :  {type : 'string' , default : '0'},
+    callout_unit : {type : 'int' , default : 0},
+    callout_value : {type : 'float' , default : 0.00},
+    callin_unit : {type : 'int' , default : 0},
+    callin_value : {type : 'float' , default : 0.00},
+    smsout_price : {type : 'int' , default : 0},
+    smsin_price : {type : 'int' , default : 0},
+    chargin_amounnt : {type : 'int' , default : 0},
+    balance_ussd : {type : 'string' , default : '0'},
+    msisdn_ussd :  {type : 'string' , default : '0'},
+    simprice :  {type : 'int' , default : 0},
+    add_time :  {type : 'int' , default : 0},
+    LUR_time :  {type : 'int' , default : 0},
+    lur_check_time :  {type : 'int' , default : 0},
+    etc_check_time :  {type : 'int' , default : 0},
+    mp_ip :  {type : 'string' , default : "18.136.196.175"},
+    mp_port :  {type : 'string' , default : "7006"},
+
+  }
+}
+
+
 
 exports.USER_PROMO_TEST = User_Promo_Schema;
 exports.SIM_TEST = Sim_Imsi_Schema;
@@ -143,3 +179,4 @@ exports.USER_TEST = UserInfoSchema;
 exports.MEDIA_TEST = MediaSchema;
 exports.CONNECTORINFO_TEST = Connector_Info_Schema;
 exports.RATE_TEST = RateSchema;
+exports.GLOBALCARRIER_TEST = Global_Carrier_Schema;
