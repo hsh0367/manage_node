@@ -5,6 +5,8 @@ var addon_child = require('bindings')('addon_child');
 addon_child.setConnect(5555, "127.0.0.1");
 
 let realm = new Realm({
+  deleteRealmIfMigrationNeeded: true,
+  disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
   schemaVersion: 35
 });
@@ -14,6 +16,14 @@ var options = {
   encoding: 'utf8',
   flag: 'a'
 };
+// realm.addListener("change", (realm, changes, schema) => {
+//   write_log("realm.change : " + changes)
+//
+//   if (realm.isInTransaction) {
+//     write_log("realm.change isInTransaction")
+//     realm.commitTransaction();
+//   }
+// });
 
 function write_log(data) {
   var dt = new Date();
@@ -92,8 +102,6 @@ function mp_paging(dictdata) {
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
 
 
-
-
   if (user_sim_checker.length > 0) {
     var imsi = user_sim_checker[0].imsi;
     var imei = user_sim_checker[0].imei;
@@ -108,13 +116,41 @@ function mp_paging(dictdata) {
     var cell_id = user_sim_checker[0].cell_id;
     var bsic = user_sim_checker[0].bsic;
 
+    var carrier_id = sim_imsi.slice(0, 5)
+    var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
+    let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
 
-    var msg = "MP|PAGING|" + seq + "|" + imsi + "|" + imei + "|" + tmsi + "|" + kc + "|" + cksn + "|" + msisdn + "|" + sim_id + "|" + sim_serial_no + "|" + lac + "|" + channel + "|" + mi_type + "|" + arfcn + "|" + cell_id + "|" + bsic + "|"
-    process.send({ data : msg, port : dictdata['port']});
+    if (global_carrier_checker.length > 0) {
+      var mp_ip = global_carrier_checker[0].mp_ip
+      var mp_port = global_carrier_checker[0].mp_port
+
+      var msg = "MP|PAGING|" + seq + "|" + imsi + "|" + imei + "|" + tmsi + "|" + kc + "|" + cksn + "|" + msisdn + "|" + sim_id + "|" + sim_serial_no + "|" + lac + "|" + channel + "|" + mi_type + "|" + arfcn + "|" + cell_id + "|" + bsic + "|"
+      process.send({
+        data: msg,
+        port: mp_port,
+        ip: mp_ip
+      });
+    }
+
+
   }
   else {
-    var msg = "MP|PAGING|" + seq + "|" + sim_imsi + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + channel + "|" + mi_type + "|" + 0 + "|" + 0 + "|" + 0 + "|"
-    process.send({ data : msg, port : dictdata['port']});
+
+    var carrier_id = sim_imsi.slice(0, 5)
+    var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
+    let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+
+    if (global_carrier_checker.length > 0) {
+      var mp_ip = global_carrier_checker[0].mp_ip
+      var mp_port = global_carrier_checker[0].mp_port
+
+      var msg = "MP|PAGING|" + seq + "|" + sim_imsi + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + channel + "|" + mi_type + "|" + 0 + "|" + 0 + "|" + 0 + "|"
+      process.send({
+        data: msg,
+        port: mp_port,
+        ip: mp_ip
+      });
+    }
   }
 
 

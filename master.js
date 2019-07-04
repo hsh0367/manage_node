@@ -1,13 +1,16 @@
 const cp = require('child_process');
+var addon_udp = require('bindings')('addon_udp');
+
 var Queue = require('bull');
 var os = require('os');
 var addon = require('bindings')('addon');
 var job_que = [];
-var dataQueue = new Queue('DataQueue');
+var dataQueue = new Queue('dataQueue');
 var jobQueue = new Queue('JobQueue');
 var resultQueue = new Queue('resultQueue');
 var addon_child = require('bindings')('addon_child');
 addon_child.setConnect(5555, "127.0.0.1");
+addon_udp.setCallback(2323, data_test);
 
 //test data : sms|data1|data2|data3,call|data1|data2,mp|data1|data2,policy|data1|data2,cnd|data1|data2,etc|data1|data2,lur|data1|data2
 var a = 0;
@@ -17,7 +20,10 @@ var options = {
   encoding: 'utf8',
   flag: 'a'
 };
-
+// var ee = realm.isValid()
+// var ss = realm.linkingObject()
+// write_log("ee : "+ee)
+// console.log("ss : "+ss)
 function write_log(data) {
   var dt = new Date();
 
@@ -59,8 +65,9 @@ function command_classifier(data) {
       });
       break;
     case 'POLICY':
-      console.log("send policy_child : ", data);
-      write_log("send policy_child : ", data);
+      console.log("send policy_child : " + data['command']);
+      write_log("send policy_child : " + data);
+      console.log(policy_child_test.connected)
 
       policy_child_test.send({
         data: data
@@ -104,6 +111,8 @@ addon.setCallback(2222, data_test);
 dataQueue.process(function(job, done) {
   // console.log("dataQueue")
   var temp = job.data.data
+
+write_log(temp)
   parsing_child_test.send({
     data: temp
   });
@@ -112,191 +121,284 @@ dataQueue.process(function(job, done) {
 
 jobQueue.process(function(job, done) {
 
-  console.log("jobQueue : ", job.data.msg);
+  write_log("jobQueue : ", job.data.msg);
   command_classifier(job.data.msg);
   done();
+
 });
 resultQueue.process(function(job, done) {
 
-  addon.send_data(job.data.msg);
+
+  var msg = job.data.msg;
+  var command = msg.slice(0,2);
+
+  write_log("msg : "+job.data.msg)
+  write_log("port : "+job.data.port)
+
+  if(command == "MP"){
+    addon_udp.send_data( job.data.msg, job.data.ip, job.data.port)
+    write_log("ip : "+job.data.ip)
+  }
+  else {
+    addon.send_data(job.data.port, job.data.msg);
+  }
+
   done();
 });
-const parsing_child_test = cp.fork('./child_test/parsing_child_test.js');
-const call_child_test = cp.fork('./child_test/call_child_test.js');
-const cnd_child_test = cp.fork('./child_test/cnd_child_test.js');
-const etc_child_test = cp.fork('./child_test/etc_child_test.js');
-const lur_child_test = cp.fork('./child_test/lur_child_test.js');
-const mp_child_test = cp.fork('./child_test/mp_child_test.js');
-const policy_child_test = cp.fork('./child_test/policy_child_test.js');
-const simAdder_child_test = cp.fork('./child_test/simAdder_child_test.js');
-const sms_child_test = cp.fork('./child_test/sms_child_test.js');
-const DB_test = cp.fork('./child_test/db_child_test.js');
+// var parsing_child_test = cp.fork('./child_test/parsing_child_test.js');
+// var policy_child_test = cp.fork('./child_test/policy_child_test.js');
+// var call_child_test = cp.fork('./child_test/call_child_test.js');
+// var cnd_child_test = cp.fork('./child_test/cnd_child_test.js');
+// var etc_child_test = cp.fork('./child_test/etc_child_test.js';
+// var lur_child_test = cp.fork('./child_test/lur_child_test.js');
+// var mp_child_test = cp.fork('./child_test/mp_child_test.js');
+// var simAdder_child_test = cp.fork('./child_test/simAdder_child_test.js');
+// var sms_child_test = cp.fork('./child_test/sms_child_test.js');
 
 
-parsing_child_test.on('exit', code => {
-  console.log("parsing_child_test exit")
-  console.log(`Exit code is: ${code}`);
-  write_log("parsing_child_test exit")
-  write_log(`Exit code is: ${code}`)
-})
-parsing_child_test.on('error', (value) => {
-  console.log("error")
-  console.log(value)
-  write_log("parsing_child_test error : " + value)
+parsing_child()
+policy_child()
+call_child()
+etc_child()
+lur_child()
+mp_child()
+sms_child()
 
-})
+function parsing_child() {
+  parsing_child_test = cp.fork("./child_test/parsing_child_test.js", options); //child_process.spawn('node', [nodefile]);
+  var job_que = [];
+  parsing_child_test.on('message', (value) => {
+    job_que = value;
+    console.log("recive parsing");
+    write_log("recive parsing")
 
+    while (job_que.length > 0) {
+      jobQueue.add({
+        msg: job_que.shift()
+      });
+    }
+  });
+  parsing_child_test.on('exit', function(code) {
+    console.log('parsing_child process exited with code ' + code);
+    write_log('parsing_child process exited with code ' + code);
 
-call_child_test.on('exit', code => {
-  console.log("exit")
-  console.log(`Exit code is: ${code}`);
-  write_log("call_child_test exit")
-  write_log(`Exit code is: ${code}`)
-})
-call_child_test.on('error', (value) => {
-  console.log("error")
-  console.log(value)
-  write_log("call_child_test error : " + value)
+    delete parsing_child_test;
+    setTimeout(parsing_child, 1000);
+  });
+}
 
-})
-lur_child_test.on('exit', code => {
-  console.log("exit")
-  console.log(`Exit code is: ${code}`);
-  write_log("lur_child_test exit")
-  write_log(`Exit code is: ${code}`)
-})
-lur_child_test.on('error', (value) => {
-  console.log("error")
-  console.log(value)
-  write_log("lur_child_test error : " + value)
+function policy_child() {
 
-})
-mp_child_test.on('exit', code => {
-  console.log("exit")
-  console.log(`Exit code is: ${code}`);
-  write_log("mp_child_test exit")
-  write_log(`Exit code is: ${code}`)
-})
-mp_child_test.on('error', (value) => {
-  console.log("error")
-  console.log(value)
-  write_log("mp_child_test error : " + value)
+  policy_child_test = cp.fork("./child_test/policy_child_test.js", options); //child_process.spawn('node', [nodefile]);
+  policy_child_test.on('message', (value) => {
+    //만약 DB CHILD에 넘겨줄 데이터일경우 처리
 
-})
-policy_child_test.on('exit', code => {
-  console.log("exit")
-  console.log(`Exit code is: ${code}`);
-  write_log("policy_child_test exit")
-  write_log(`Exit code is: ${code}`)
-})
-policy_child_test.on('error', (value) => {
-  console.log("error")
-  console.log(value)
-  write_log("policy_child_test error : " + value)
+    console.log(policy_child_test.connected)
+    write_log("receive to policy value data : " + value.data);
+    write_log("receive to policy port : " + value.port);
 
-})
-DB_test.on('exit', code => {
-  console.log("exit")
-  console.log(`Exit code is: ${code}`);
-  write_log("DB_test exit")
-  write_log(`Exit code is: ${code}`)
-})
-DB_test.on('error', (value) => {
-  console.log("error")
-  console.log(value)
-  write_log("DB_test error : " + value)
+    var result = value.data
+    var command = result.slice(0, 3);
 
-})
-sms_child_test.on('exit', code => {
-  console.log("exit")
-  console.log(`Exit code is: ${code}`);
-  write_log("sms_child_test exit")
-  write_log(`Exit code is: ${code}`)
-})
-sms_child_test.on('error', (value) => {
-  console.log("error")
-  console.log(value)
-  write_log("sms_child_test error : " + value)
-})
+    if (command == "LUR") { //심구매시 lur시도를 해주어야 하기때문에
 
+      dataQueue.add({
+        data: value.data
+      });
+    }
+    else {
+      resultQueue.add({
+        msg: value.data,
+        port: value.port,
+      });
+    }
+  });
+  policy_child_test.on('exit', function(code) {
+    write_log('policy_child process exited with code ' + code);
+    delete policy_child_test;
+    setTimeout(policy_child, 1000);
+  });
+}
 
-// cnd_child_test.on('exit', (value) => {
-//   console.log("exit")
-//   console.log(`Exit code is: ${code}`);
-//   write_log("cnd_child_test exit")
-//   write_log(`Exit code is: ${code}`)
-// })
-// etc_child_test.on('error', (value) => {
-//   console.log("error")
-//   console.log(value)
-// })
+function call_child() {
+  call_child_test = cp.fork("./child_test/call_child_test.js", options); //child_process.spawn('node', [nodefile]);
+  call_child_test.on('message', (value) => {
+    console.log("receive to call");
+    write_log("receive to call" + value.data)
+    var result = value.data
 
-
-parsing_child_test.on('message', (value) => {
-  job_que = value;
-  console.log("recive parsing");
-  write_log("recive parsing")
-
-  while (job_que.length > 0) {
-    jobQueue.add({
-      msg: job_que.shift()
+    resultQueue.add({
+      msg: value.data,
+      port: value.port,
     });
-  }
-});
 
-policy_child_test.on('message', (value) => {
-  //만약 DB CHILD에 넘겨줄 데이터일경우 처리
-
-
-  console.log("receive to policy" + value);
-  write_log("receive to policy" + value)
-
-  resultQueue.add({
-    msg: value
   });
-
-});
-call_child_test.on('message', (value) => {
-  //만약 DB CHILD에 넘겨줄 데이터일경우 처리
-
-  console.log("receive to call");
-  write_log("receive to call" + value)
-
-  resultQueue.add({
-    msg: value
+  call_child_test.on('exit', function(code) {
+    write_log('call_child process exited with code ' + code);
+    delete call_child_test;
+    setTimeout(call_child, 1000);
   });
+}
 
-});
-lur_child_test.on('message', (value) => {
-  //만약 DB CHILD에 넘겨줄 데이터일경우 처리
+function etc_child() {
 
-  console.log("receive to lur");
-  write_log("receive to lur" + value)
-
-  resultQueue.add({
-    msg: value
+  etc_child_test = cp.fork("./child_test/etc_child_test.js", options); //child_process.spawn('node', [nodefile]);
+  etc_child_test.on('message', (value) => {
+    write_log("receive to etc" + value.data);
+    write_log("receive to etc" + value.data)
+    resultQueue.add({
+      msg: value.data,
+      port: value.port,
+      ip: value.ip
+    });
   });
-
-});
-
-sms_child_test.on('message', (value) => {
-  //만약 DB CHILD에 넘겨줄 데이터일경우 처리
-
-  console.log("receive to sms");
-  write_log("receive to sms" + value)
-
-  resultQueue.add({
-    msg: value
+  etc_child_test.on('exit', function(code) {
+    write_log('etc_child process exited with code ' + code);
+    delete etc_child_test;
+    setTimeout(etc_child, 1000);
   });
-});
-mp_child_test.on('message', (value) => {
-  //만약 DB CHILD에 넘겨줄 데이터일경우 처리
+}
 
-  console.log("receive to mp");
-  write_log("receive to mp" + value)
-
-  resultQueue.add({
-    msg: value
+function lur_child() {
+  lur_child_test = cp.fork("./child_test/lur_child_test.js", options); //child_process.spawn('node', [nodefile]);
+  lur_child_test.on('message', (value) => {
+    write_log("receive to etc" +  value.data);
+    write_log("receive to etc" +  value.data)
+    resultQueue.add({
+      msg: value.data,
+      port: value.port,
+      ip: value.ip
+    });
   });
+  lur_child_test.on('exit', function(code) {
+    write_log('lur_child process exited with code ' + code);
+    delete lur_child_test;
+    setTimeout(lur_child, 1000);
+  });
+}
 
-});
+function mp_child() {
+
+  mp_child_test = cp.fork("./child_test/mp_child_test.js", options); //child_process.spawn('node', [nodefile]);
+  mp_child_test.on('message', (value) => {
+    //만약 DB CHILD에 넘겨줄 데이터일경우 처리
+
+    write_log("receive to mp");
+    write_log("receive to mp" + value)
+
+    resultQueue.add({
+      msg: value.data,
+      port: value.port,
+      ip: value.ip
+    });
+
+  });
+  mp_child_test.on('exit', function(code) {
+    write_log('mp_child process exited with code ' + code);
+    delete mp_child_test;
+    setTimeout(mp_child, 1000);
+  });
+}
+
+function sms_child() {
+
+  sms_child_test = cp.fork("./child_test/sms_child_test.js", options); //child_process.spawn('node', [nodefile]);
+  sms_child_test.on('message', (value) => {
+    //만약 DB CHILD에 넘겨줄 데이터일경우 처리
+
+    write_log("receive to sms");
+    write_log("receive to sms" + value)
+
+    resultQueue.add({
+      msg: value.data,
+      port: value.port
+    });
+  });
+  sms_child_test.on('exit', function(code) {
+    write_log('sms_child process exited with code ' + code);
+    delete sms_child_test;
+    setTimeout(sms_child, 1000);
+  });
+}
+
+//
+// parsing_child_test.on('message', (value) => {
+//   job_que = value;
+//   write_log("recive parsing");
+//   write_log("recive parsing")
+//
+//   while (job_que.length > 0) {
+//     jobQueue.add({
+//       msg: job_que.shift()
+//     });
+//   }
+// });
+// policy_child_test.on('message', (value) => {
+//   //만약 DB CHILD에 넘겨줄 데이터일경우 처리
+//
+//   write_log(policy_child_test.connected)
+//
+//   write_log("receive to policy" + value);
+//   write_log("receive to policy" + value)
+//   var command = value.slice(0, 3);
+//   if (command == "LUR") { //심구매시 lur시도를 해주어야 하기때문에
+//     DataQueue.add({
+//       msg: value
+//     });
+//   }
+//   else {
+//     resultQueue.add({
+//       msg: value
+//     });
+//   }
+// });
+// call_child_test.on('message', (value) => {
+//   //만약 DB CHILD에 넘겨줄 데이터일경우 처리
+//   write_log("receive to call");
+//   write_log("receive to call" + value)
+//   resultQueue.add({
+//     msg: value
+//   });
+// });
+// lur_child_test.on('message', (value) => {
+//   //만약 DB CHILD에 넘겨줄 데이터일경우 처리
+//
+//   write_log("receive to lur");
+//   write_log("receive to lur" + value)
+//
+//   resultQueue.add({
+//     msg: value
+//   });
+//
+// });
+// sms_child_test.on('message', (value) => {
+//   //만약 DB CHILD에 넘겨줄 데이터일경우 처리
+//
+//   write_log("receive to sms");
+//   write_log("receive to sms" + value)
+//
+//   resultQueue.add({
+//     msg: value
+//   });
+// });
+// mp_child_test.on('message', (value) => {
+//   //만약 DB CHILD에 넘겨줄 데이터일경우 처리
+//
+//   write_log("receive to mp");
+//   write_log("receive to mp" + value)
+//
+//   resultQueue.add({
+//     msg: value
+//   });
+//
+// });
+// etc_child_test.on('message', (value) => {
+//   //만약 DB CHILD에 넘겨줄 데이터일경우 처리
+//
+//   write_log("receive to etc" + value);
+//   write_log("receive to etc" + value)
+//
+//   resultQueue.add({
+//     msg: value
+//   });
+// });

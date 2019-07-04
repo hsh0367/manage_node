@@ -28,16 +28,23 @@ function write_log(data) {
 }
 
 function timeConverter(UNIX_timestamp) {
-  var a = new Date(UNIX_timestamp);
-  var months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
-  var year = a.getFullYear();
-  var month = months[a.getMonth()];
-  var date = a.getDate();
-  var hour = a.getHours();
-  var min = a.getMinutes();
-  var sec = a.getSeconds();
-  var time = year + '-' + month + '-' + date + ' ' + hour + ':' + min + ':' + sec;
-  return time;
+  if (UNIX_timestamp == 0) {
+    var time = "0000-00-00 00:00:00";
+    return time;
+  }
+  else {
+
+    var a = new Date(UNIX_timestamp);
+    var months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+    var year = a.getFullYear();
+    var month = months[a.getMonth()];
+    var date = a.getDate();
+    var hour = a.getHours();
+    var min = a.getMinutes();
+    var sec = a.getSeconds();
+    var time = year + '-' + month + '-' + date + ' ' + hour + ':' + min + ':' + sec;
+    return time;
+  }
 }
 DbJobQueue.process(function(job, done) {
   // console.log("jobQueue : ", job.data.msg);
@@ -53,24 +60,28 @@ function data_test(msg) {
     msg: msg
   });
 }
-
-
-
-
 var connection = mysql.createConnection({
   host: 'everytt-rds.cf5whdjkixxd.ap-southeast-1.rds.amazonaws.com',
   user: 'everytt',
   password: 'dpqmflTT1#',
   database: 'smartTT'
-
 });
 
 connection.connect(function(err) {
   if (err) throw err;
   console.log("Connected!");
 });
+connection.on('error', function(err) {
+  if(error.code =='PROTOCOL_CONNECTION_LOST' ){
+    var connection = mysql.createConnection({
+      host: 'everytt-rds.cf5whdjkixxd.ap-southeast-1.rds.amazonaws.com',
+      user: 'everytt',
+      password: 'dpqmflTT1#',
+      database: 'smartTT'
+    });
 
-
+  }
+});
 function parser(data) {
   var str = data;
   var command_divied = str.split("END");
@@ -197,6 +208,7 @@ function voice_result(dictdata) {
   var mobile_addr = dictdata['data9']
   var s_date = parseInt(dictdata['data10'])
   var e_date = parseInt(dictdata['data11'])
+
 
   var sql = "INSERT INTO tb_voip_info(call_type,codec, mobile, port, recv_app, recv_mobile, app_addr, mobile_addr, s_date, e_date) VALUES (" + call_type + "," + codec + ",\"" + mobile + "\"," + port + "," + recv_app + ", " + recv_mobile + ",\"" + app_addr + "\",\"" + mobile_addr + "\",\"" + timeConverter(s_date * 1000) + "\",\"" + timeConverter(e_date * 1000) + "\");";
   query_Launcher(sql);
@@ -429,12 +441,14 @@ function call_drop(dictdata) {
   var call_result = dictdata['data21'];
 
   var now = Date.now();
+  var total_time = e_date - s_date
 
   if (c_date != 0) {
-
+    var use_time = e_date - c_date
   }
-  var use_time = e_date - c_date
-  var total_time = e_date - s_date
+  else {
+    var use_time = 0
+  }
   var isAppSend = 0
   var reg_date = timeConverter(Date.now());
 
@@ -470,13 +484,13 @@ function call_drop(dictdata) {
         reject("Error!");
       });
       query_Launcher(db_user_msg)
-
       write_log("call-drop db_user_msg SUCESS : " + db_user_msg)
       write_log("call-drop db_credit_history_msg SUCESS : " + db_credit_history_msg)
 
       database.query(db_credit_history_msg)
         .then(rows => {
           var credit_pid = rows.insertId
+
           console.log("call credit_pid : " + credit_pid)
           var db_call_log_msg = "INSERT INTO tb_call_log (id, user_serial, con_id, mobile_number,  s_date, c_date, e_date, use_time, total_time, area_name, simbank_name, sim_imsi, sim_no, isAppSend,credit_pid) VALUES ( '" + user_id + "','" + user_serial + "','" + con_id + "','" + outbound + "', '" + timeConverter(s_date * 1000) + "','" + timeConverter(c_date * 1000) + "','" + timeConverter(e_date * 1000) + "'," + use_time + "," + total_time + ",'" + area_name + "','" + simbank_name + "','" + imsi + "'," + sim_serial_no + "," + isAppSend + "," + credit_pid + ")"
           console.log("call db_call_log_msg SUCESS : " + db_call_log_msg)
@@ -501,7 +515,8 @@ function call_drop(dictdata) {
   else {
     console.log("ERR-USER")
     console.log(db_call_log_msg);
-    var db_call_log_msg = "INSERT INTO tb_call_log (id, user_serial, con_id, mobile_number,  s_date, c_date, e_date, use_time, total_time, area_name, simbank_name, sim_imsi, sim_no, isAppSend) VALUES ( '" + user_id + "','" + user_serial + "','" + con_id + "','" + outbound + "', '" + s_date + "','" + c_date + "','" + e_date + "'," + use_time + "," + total_time + ",'" + area_name + "','" + simbank_name + "','" + imsi + "'," + sim_serial_no + "," + isAppSend + ")"
+
+    var db_call_log_msg = "INSERT INTO tb_call_log (id, user_serial, con_id, mobile_number,  s_date, c_date, e_date, use_time, total_time, area_name, simbank_name, sim_imsi, sim_no, isAppSend) VALUES ( '" + user_id + "','" + user_serial + "','" + con_id + "','" + outbound + "', '" + timeConverter(s_date * 1000) + "','" + timeConverter(c_date * 1000) + "','" + timeConverter(e_date * 1000) + "'," + use_time + "," + total_time + ",'" + area_name + "','" + simbank_name + "','" + imsi + "'," + sim_serial_no + "," + isAppSend + ")"
     write_log("call-drop db_call_log_msg ERR-USER : " + db_call_log_msg)
     query_Launcher(db_call_log_msg);
   }

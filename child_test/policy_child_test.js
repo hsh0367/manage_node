@@ -11,15 +11,26 @@ addon_child.setConnect(5555, "127.0.0.1");
 // var realm = new Realm(Realm.defaultPath)
 
 var realm = new Realm({
+  deleteRealmIfMigrationNeeded: true,
+  disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
   schemaVersion: 35
 });
+
 require('date-utils');
 var fs = require('fs');
 var options = {
   encoding: 'utf8',
   flag: 'a'
 };
+// realm.addListener("change", (realm, changes, schema) => {
+//   write_log("realm.change : " + changes)
+//
+//   if (realm.isInTransaction) {
+//     write_log("realm.change isInTransaction")
+//     realm.commitTransaction();
+//   }
+// });
 
 function write_log(data) {
   var dt = new Date();
@@ -229,15 +240,21 @@ function tt_login(login_data) {
   sim_data.msisdn = 0
   sim_data.expire_match_date = 0
 
+  write_log(" login_data.user_id : " + login_data.user_id)
+  write_log(" login_data.encpwd : " + login_data.encpwd)
+
   var user_check = 'user_id = "' + login_data.user_id + '" AND user_pw = "' + login_data.encpwd + '"';
+  var user_checker = realm.objects('USER').filtered(user_check);
   var now = Date.now();
 
-  var user_checker = realm.objects('USER').filtered(user_check);
 
-  if (user_checker.length > 0 ) { //if user is found
+  write_log("user_checker.length : " + user_checker.length)
+  if (user_checker.length > 0) { //if user is found
+    write_log("22222 : " + login_data.imsi)
 
-    var user_sim_check = 'imsi = "' + user_checker[0].imsi + '" AND user_id =  "' + user_checker[0].user_id + '"';
+    var user_sim_check = 'imsi = "' + login_data.imsi + '" AND user_id =  "' + login_data.user_id + '"';
     var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+
 
 
 
@@ -246,38 +263,75 @@ function tt_login(login_data) {
     sim_data.join_type = user_checker[0].join_type;
 
     if (user_sim_checker.length > 0) { //심구매 유저일경우
-      var imsi = user_sim_checker[0].imsi
-      var msisdn = user_sim_checker[0].msisdn
+      sim_data.imsi = user_sim_checker[0].imsi
+      sim_data.msisdn = user_sim_checker[0].msisdn
 
 
       console.log("policy_child login sim  o");
 
-      realm.write(() => {
-        user_checker[0].user_sim_imsi = login_data.imsi;
-        user_sim_checker[0].imsi = login_data.imsi;
-      });
+      // realm.write(() => {
+      //   user_checker[0].user_sim_imsi = login_data.imsi;
+      //   user_sim_checker[0].imsi = login_data.imsi;
+      // });
 
-      sim_data.imsi = user_checker[0].imsi
+
       login_msg(login_data, sim_data);
 
     }
     else { //심구매하지 않는 유저일경우
+      write_log("111111111111111111 : " + login_data.imsi)
       var mcc = login_data.imsi.slice(0, 3)
       var mnc = login_data.imsi.slice(3, 5)
       var imei = imeigc.randomIMEI_fullRandom();
 
-      realm.write(() => {
-        var SIM = realm.create('SIM', {
-          user_id: login_data.user_id,
-          imsi: login_data.imsi,
-          imei: imei,
-          mcc: mcc,
-          mnc: mnc,
-          sim_type: sim_data.join_type,
-        });
-        user_checker[0].user_sim_imsi = login_data.imsi;
+      var match_sim_check = 'imsi = "' + login_data.imsi + '"';
+      var match_sim_checker = realm.objects('SIM').filtered(match_sim_check);
 
-      });
+      if (user_checker[0].user_sim_imsi != login_data.imsi && user_checker[0].user_sim_imsi != '0') {
+        var old_sim_check = 'imsi = "' + user_checker[0].user_sim_imsi + '"';
+        var old_sim_checker = realm.objects('SIM').filtered(old_sim_check);
+
+        if (old_sim_checker.length > 0) {
+          realm.write(() => {
+            realm.delete(old_sim_checker)
+          });
+        }
+      }
+
+
+
+
+      if (match_sim_checker.length > 0) {
+        write_log("match_sim_checker.length : " + match_sim_checker.length)
+        realm.write(() => {
+          realm.delete(match_sim_checker)
+
+          var SIM = realm.create('SIM', {
+            user_id: login_data.user_id,
+            imsi: login_data.imsi,
+            imei: imei,
+            mcc: mcc,
+            mnc: mnc,
+            sim_type: sim_data.join_type,
+          });
+          user_checker[0].user_sim_imsi = login_data.imsi;
+        });
+      }
+      else {
+        realm.write(() => {
+          var SIM = realm.create('SIM', {
+            user_id: login_data.user_id,
+            imsi: login_data.imsi,
+            imei: imei,
+            mcc: mcc,
+            mnc: mnc,
+            sim_type: sim_data.join_type,
+          });
+          user_checker[0].user_sim_imsi = login_data.imsi;
+        });
+      }
+
+
 
       sim_data.imsi = login_data.imsi;
       login_msg(login_data, sim_data);
@@ -286,514 +340,623 @@ function tt_login(login_data) {
   }
 }
 
+// function tt_login(login_data) {
+//   var sim_data = new Object();
+//
+//
+//   write_log("22222 : "+login_data.imsi)
+//
+//   sim_data.join_type = 0
+//   sim_data.user_serial = 0
+//   sim_data.credit = 0
+//   sim_data.imsi = 0
+//   sim_data.msisdn = 0
+//   sim_data.expire_match_date = 0
+//
+//   var user_check = 'user_id = "' + login_data.user_id + '" AND user_pw = "' + login_data.encpwd + '"';
+//   var now = Date.now();
+//
+//   var user_checker = realm.objects('USER').filtered(user_check);
+//
+//   if (user_checker.length > 0) { //if user is found
+//     write_log("22222 : "+login_data.imsi)
+//
+//     var user_sim_check = 'imsi = "' + login_data.imsi + '" AND user_id =  "' + login_data.user_id + '"';
+//     var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+//
+//
+//
+//
+//     sim_data.user_serial = user_checker[0].user_serial;
+//     sim_data.credit = user_checker[0].credit;
+//     sim_data.join_type = user_checker[0].join_type;
+//
+//     if (user_sim_checker.length > 0) { //심구매 유저일경우
+//       sim_data.imsi = user_sim_checker[0].imsi
+//       sim_data.msisdn = user_sim_checker[0].msisdn
+//
+//
+//       console.log("policy_child login sim  o");
+//
+//       // realm.write(() => {
+//       //   user_checker[0].user_sim_imsi = login_data.imsi;
+//       //   user_sim_checker[0].imsi = login_data.imsi;
+//       // });
+//
+//
+//       login_msg(login_data, sim_data);
+//
+//     }
+//     else { //심구매하지 않는 유저일경우
+//       write_log("111111111111111111 : "+login_data.imsi)
+//       var mcc = login_data.imsi.slice(0, 3)
+//       var mnc = login_data.imsi.slice(3, 5)
+//       var imei = imeigc.randomIMEI_fullRandom();
+//
+//       var match_sim_check = 'imsi = "' + login_data.imsi + '"';
+//       var match_sim_checker = realm.objects('SIM').filtered(match_sim_check);
+//
+//       if (user_chekcer[0].user_sim_imsi != login_data.imsi && user_chekcer[0].user_sim_imsi != '0') {
+//         var old_sim_check = 'imsi = "' + user_chekcer[0].user_sim_imsi + '"';
+//         var old_sim_checker = realm.objects('SIM').filtered(old_sim_check);
+//
+//         if (old_sim_checker.length > 0) {
+//           realm.write(() => {
+//             realm.delete(old_sim_checker)
+//           });
+//         }
+//       }
+//
+//
+//
+//
+//       if (match_sim_checker.length > 0) {
+//         write_log("match_sim_checker.length : "+match_sim_checker.length)
+//         realm.write(() => {
+//           realm.delete(match_sim_checker)
+//
+//           var SIM = realm.create('SIM', {
+//             user_id: login_data.user_id,
+//             imsi: login_data.imsi,
+//             imei: imei,
+//             mcc: mcc,
+//             mnc: mnc,
+//             sim_type: sim_data.join_type,
+//           });
+//           user_checker[0].user_sim_imsi = login_data.imsi;
+//         });
+//       }
+//       else {
+//         realm.write(() => {
+//           var SIM = realm.create('SIM', {
+//             user_id: login_data.user_id,
+//             imsi: login_data.imsi,
+//             imei: imei,
+//             mcc: mcc,
+//             mnc: mnc,
+//             sim_type: sim_data.join_type,
+//           });
+//           user_checker[0].user_sim_imsi = login_data.imsi;
+//         });
+//       }
+//
+//
+//
+//       sim_data.imsi = login_data.imsi;
+//       login_msg(login_data, sim_data);
+//       console.log("policy_child login sim  x");
+//     }
+//   }
+// }
 
-  function login(dicdata) {
-    var login_data = new Object();
-    var sim_data = new Object();
 
-    var command_line = dicdata;
-    login_data.command = command_line['command'];
-    login_data.sub_command = command_line['data1'];
-    login_data.seq = command_line['data2'];
-    login_data.tcp_fd = command_line['data3'];
-    login_data.user_id = command_line['data4'];
-    login_data.user_pw = command_line['data5'];
-    login_data.app_type = parseInt(command_line['data6']);
-    login_data.imsi = command_line['data7'];
-    login_data.encpwd = psw_encryption(login_data.user_pw);
-    login_data.port = command_line['port'];
+function login(dicdata) {
+  var login_data = new Object();
+  var sim_data = new Object();
 
-    sim_data.join_type = 0
-    sim_data.user_serial = 0
-    sim_data.credit = 0
-    sim_data.imsi = 0
-    sim_data.msisdn = 0
-    sim_data.expire_match_date = 0
+  var command_line = dicdata;
+  login_data.command = command_line['command'];
+  login_data.sub_command = command_line['data1'];
+  login_data.seq = command_line['data2'];
+  login_data.tcp_fd = command_line['data3'];
+  login_data.user_id = command_line['data4'];
+  login_data.user_pw = command_line['data5'];
+  login_data.app_type = parseInt(command_line['data6']);
+  login_data.imsi = command_line['data7'];
+  login_data.encpwd = psw_encryption(login_data.user_pw);
+  login_data.port = command_line['port'];
 
-    var user_check = 'user_id = "' + login_data.user_id + '" AND user_pw = "' + login_data.encpwd + '"';
-    var facebook_check = 'user_id = "' + login_data.user_id + '"';
-    var now = Date.now();
+  sim_data.join_type = 0
+  sim_data.user_serial = 0
+  sim_data.credit = 0
+  sim_data.imsi = 0
+  sim_data.msisdn = 0
+  sim_data.expire_match_date = 0
 
-    var user_checker = realm.objects('USER').filtered(user_check);
+  var user_check = 'user_id = "' + login_data.user_id + '" AND user_pw = "' + login_data.encpwd + '"';
+  var facebook_check = 'user_id = "' + login_data.user_id + '"';
+  var now = Date.now();
 
-    if (user_checker.length > 0) { //if user is found
-      if (user_checker[0].join_type == 1) {
-        tt_login(login_data)
-      }
-      else {
+  var user_checker = realm.objects('USER').filtered(user_check);
 
-        var user_sim_check = 'imsi = "' + user_checker[0].imsi + '" AND expire_match_date >"' + now + '"';
-        var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
-
-        sim_data.user_serial = user_checker[0].user_serial;
-        sim_data.credit = user_checker[0].credit;
-        sim_data.join_type = user_checker[0].join_type;
-
-          if (user_sim_checker.length > 0) { //심구매 유저일경우
-            var imsi = user_sim_checker[0].imsi
-            var msisdn = user_sim_checker[0].msisdn
-            var expire_match_date = user_sim_checker[0].expire_match_date
-
-
-            console.log("policy_child login sim  o");
-            if (sim_data.join_type == 1) {
-              realm.write(() => {
-                user_checker[0].user_sim_imsi = login_data.imsi;
-                user_sim_checker[0].imsi = login_data.imsi;
-
-              });
-              sim_data.imsi = user_checker[0].imsi
-              login_msg(login_data, sim_data);
-            }
-            else {
-              login_msg(login_data, sim_data);
-            }
-          }
-          else { //심구매하지 않는 유저일경우
-            if (sim_data.join_type == 1) {
-              var mcc = login_data.imsi.slice(0, 3)
-              var mnc = login_data.imsi.slice(3, 5)
-              var imei = imeigc.randomIMEI_fullRandom();
-
-              realm.write(() => {
-                var SIM = realm.create('SIM', {
-                  user_id: login_data.user_id,
-                  imsi: login_data.imsi,
-                  imei: imei,
-                  mcc: mcc,
-                  mnc: mnc,
-                  sim_type: sim_data.join_type,
-                });
-                user_checker[0].user_sim_imsi = login_data.imsi;
-
-              });
-
-              sim_data.imsi = login_data.imsi;
-              login_msg(login_data, sim_data);
-            }
-            else {
-              login_msg(login_data, sim_data);
-            }
-            console.log("policy_child login sim  x");
-
-          }
-
-      }
-    }
-    else { //if user is not found
-      // return command + "|" + sub_command + "|" + seq + "|" + tcp_fd + "|FAIL|";
-      var msg = login_data.command + "|" + login_data.sub_command + "|" + login_data.seq + "|" + login_data.tcp_fd + "|FAIL|";
-      process.send({
-        data: msg,
-        port: login_data.port
-      });
-      console.log("sim x", user_checker[0], msg);
-      write_log("policy_child login user is not found sim x : " + msg)
-    }
-  }
-
-
-  function timeConverter(UNIX_timestamp) {
-    var a = new Date(UNIX_timestamp);
-    var months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
-    var year = a.getFullYear();
-    var month = months[a.getMonth()];
-    var date = a.getDate();
-    var hour = a.getHours();
-    var min = a.getMinutes();
-    var sec = a.getSeconds();
-    var time = year + '-' + month + '-' + date + ' ' + hour + ':' + min + ':' + sec;
-    return time;
-  }
-
-  function fcm_key_renewal(dicdata) {
-    var command_line = dicdata;
-    var command = command_line['command'];
-    var sub_command = command_line['data1'];
-    var seq = command_line['data2'];
-    var user_serial = command_line['data3'];
-    var fcm_key = command_line['data4'];
-    var user_serial_check = 'user_serial = "' + user_serial + '"';
-    var port = command_line['port'];
-    var user_serial_checker = realm.objects('USER').filtered(user_serial_check);
-    if (user_serial_checker.length > 0) {
-      realm.write(() => {
-        user_serial_checker[0].fcm_push_key = fcm_key;
-      });
-      console.log("SUCCESS : fcm_push_key is updated");
-      write_log("policy_child fcm_key_renewal SUCCESS : fcm_push_key is updated");
-      var msg = command + "|" + sub_command + "|" + seq + "|SUCCESS|";
-      var dbmsg = "DB|D02|" + user_serial + "|" + fcm_key + "|";
-      process.send({
-        data: msg,
-        port: port
-      });
-      addon_child.send_data(dbmsg);
-      console.log(msg);
-      write_log("policy_child fcm_key_renewal SUCCESS  dbmsg : " + dbmsg + " msg : " + msg);
+  if (user_checker.length > 0) { //if user is found
+    if (user_checker[0].join_type == 1) {
+      tt_login(login_data)
     }
     else {
-      console.log("ERR-fcm_push_key: user_SERIAL is not found");
-      write_log("policy_child fcm_key_renewal ERR: user_SERIAL is not found");
 
-      // return command + "|" + sub_command + "|" + seq + "|" + tcp_fd + "|FAIL|";
-      var msg = command + "|" + sub_command + "|" + seq + "|FAIL|";
-      process.send({
-        data: msg,
-        port: port
-      });
-      console.log(msg);
-      write_log("policy_child fcm_key_renewal ERR : " + msg);
-    }
-  }
+      var user_sim_check = 'imsi = "' + user_checker[0].imsi + '" AND expire_match_date >"' + now + '"';
+      var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
 
-  function voip_key_renewal(dicdata) {
-    var command_line = dicdata;
-    var command = command_line['command'];
-    var sub_command = command_line['data1'];
-    var seq = command_line['data2'];
-    var user_serial = command_line['data3'];
-    var voip_key = command_line['data4'];
-    var port = command_line['port'];
+      sim_data.user_serial = user_checker[0].user_serial;
+      sim_data.credit = user_checker[0].credit;
+      sim_data.join_type = user_checker[0].join_type;
 
-    var user_serial_check = 'user_serial = "' + user_serial + '"';
-    var user_serial_checker = realm.objects('USER').filtered(user_serial_check);
-    if (user_serial_checker.length > 0) {
-      realm.write(() => {
-        user_serial_checker[0].voip_push_key = voip_key;
-      });
-      var msg = command + "|" + sub_command + "|" + seq + "|SUCCESS|";
-      var dbmsg = "DB|D03|" + user_serial + "|" + voip_key + "|";
-
-      process.send({
-        data: msg,
-        port: port
-      });
-      addon_child.send_data(dbmsg);
-      console.log(msg);
-      write_log("policy_child voip_key_renewal : " + msg);
-
-    }
-    else {
-      // return command + "|" + sub_command + "|" + seq + "|" + tcp_fd + "|FAIL|";
-      var msg = command + "|" + sub_command + "|" + seq + "|FAIL|";
-      process.send({
-        data: msg,
-        port: port
-      });
-      console.log(msg);
-      write_log("policy_child voip_key_renewal : " + msg);
-
-    }
-  }
-  //recv : Policy|TS07|Seq|serial|id|auto_flag|
-  //send : websock_fd, id , auto_flag
-
-  function auto_flag_renewal(dicdata) {
-
-    var command_line = dicdata;
-    var command = command_line['command'];
-    var sub_command = command_line['data1'];
-    var seq = command_line['data2'];
-    var user_serial = command_line['data3'];
-    var id = command_line['data4'];
-    var auto_flag = command_line['data5'];
-    var port = command_line['port'];
-
-    try {
-      var user_check = 'user_serial = "' + user_serial + '" AND user_id = "' + id + '"';
-      var user_checker = realm.objects('USER').filtered(user_check);
-
-      if (user_checker.length == 1) { //user 정보가 맞을경우
-
-        var user_pid = user_checker[0].user_pid
-
-        realm.write(() => {
-          user_checker[0].auto_flag = parseInt(auto_flag);
-        });
-        console.log("auto_flag_renewal success");
-        //Policy|CS6|success|auto_flag|
-        var msg = command + "|" + sub_command + "|" + seq + "|success|" + auto_flag + "|"
-        var dbmsg = "DB|D04|" + user_pid + "|" + auto_flag + "|"
-
-        write_log("policy_child auto_flag_renewal msg : " + msg);
-        write_log("policy_child auto_flag_renewal dbmsg : " + dbmsg);
+      if (user_sim_checker.length > 0) { //심구매 유저일경우
+        var imsi = user_sim_checker[0].imsi
+        var msisdn = user_sim_checker[0].msisdn
+        var expire_match_date = user_sim_checker[0].expire_match_date
 
 
-        process.send({
-          data: msg,
-          port: port
-        });
-        addon_child.send_data(dbmsg);
+        console.log("policy_child login sim  o");
+        if (sim_data.join_type == 1) {
+          realm.write(() => {
+            user_checker[0].user_sim_imsi = login_data.imsi;
+            user_sim_checker[0].imsi = login_data.imsi;
 
-      }
-      else { // user 정보가 맞지 않을경우
-        console.log("auto_flag renewal false : 맞지 않는 유저 정보입니다.");
-        var msg = command + "|" + sub_command + "|" + seq + "|fail|" + auto_flag + "|"
-        process.send({
-          data: msg,
-          port: port
-        });
-        write_log("policy_child auto_flag_renewal error msg : " + msg);
-
-      }
-
-    }
-    catch (e) {
-      console.log(e, " auto_flag_renewal error")
-      write_log("policy_child auto_flag_renewal error: " + e);
-
-    }
-  }
-
-  function buy_sim_msg(buy_sim_data, sim_data) {
-    var now = Date.now();
-
-    var msg = buy_sim_data.command + "|CS1|" + buy_sim_data.seq + "|" + sim_data.msisdn + "|" + sim_data.imsi + "|" + sim_data.credit + "|" + timeConverter(sim_data.expire_match_date) + "|0:0:0|0:0:0|0:0:0|0:0:0|0:0:0|0|0|0|";
-    process.send({
-      data: msg,
-      port: buy_sim_data.port
-    });
-    write_log("policy_child buy_sim msg : " + msg);
-
-    var buy_sim_msg = "DB|D05|" + sim_data.credit + "|" + sim_data.user_pid + "|" + timeConverter(sim_data.expire_match_date) + "|" + sim_data.imsi + "|" + sim_data.user_id + "|" + sim_data.user_serial + "|" + sim_data.msisdn + "|" + sim_data.sim_price * 10 + "|0|SIM|" + sim_data.credit * 10 + "|" + buy_sim_data.erroer + "|" + timeConverter(now) + "|" + buy_sim_data.description + "|"
-    addon_child.send_data(buy_sim_msg);
-    write_log("policy_child buy_sim dbmsg : " + buy_sim_msg);
-
-  }
-
-  function buy_sim(dicdata) {
-    //Policy|CS2|Seq|serial|id|carrier|join_app_type|order_id|event_flag|
-
-
-    var buy_sim_data = new Object();
-    var sim_data = new Object();
-
-    var command_line = dicdata;
-    buy_sim_data.command = command_line['command'];
-    buy_sim_data.sub_command = command_line['data1'];
-    buy_sim_data.seq = command_line['data2'];
-    buy_sim_data.user_serial = command_line['data3'];
-    buy_sim_data.user_id = command_line['data4'];
-    buy_sim_data.mobileType = command_line['data5'];
-    buy_sim_data.port = command_line['port'];
-
-    buy_sim_data.error = 0
-    // var join_app_type = parseInt(command_line['data6']);//everytt thepay 사용자 구준용도
-    //SIM에서 imsi가 존재해야하고 user_id,user_pid가 없어야한다.
-    var now = Date.now();
-
-
-
-
-    sim_data.sim_price = 0
-    sim_data.add_time = 0
-
-    sim_data.msisdn = 0
-    sim_data.credit = 0
-    sim_data.user_pid = 0
-    sim_data.user_id = 0
-    sim_data.user_serial = 0
-
-    sim_data.msisdn = 0
-    sim_data.expire_match_date = 0
-    sim_data.imsi = 0
-
-
-    buy_sim_data.Type = 0;
-    if (buy_sim_data.mobileType == 'smart') {
-      buy_sim_data.Type = 1;
-    }
-    else if (buy_sim_data.mobileType == 'globe') {
-      buy_sim_data.Type = 2;
-    }
-    else if (buy_sim_data.mobileType == 'Telkom') {
-      buy_sim_data.Type = 3;
-    }
-    else if (buy_sim_data.mobileType == 'XL') {
-      buy_sim_data.Type = 4;
-    }
-    // var mcc = match_sim_checker[0].mcc;
-    // var mnc = match_sim_checker[0].mnc;
-
-    var mobile_type = buy_sim_data.mobileType.toUpperCase();
-    var global_carrier_check = 'carrier = "' + mobile_type + '"';
-    let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-    console.log(mobile_type)
-
-    try {
-      //매치가 되어있지않는 심에 대한 필터링
-      var user_check = 'user_id = "' + buy_sim_data.user_id + '" AND user_serial = "' + buy_sim_data.user_serial + '"';
-      var user_checker = realm.objects('USER').filtered(user_check);
-
-
-
-      sim_data.sim_price = global_carrier_checker[0].simprice
-      sim_data.add_time = global_carrier_checker[0].add_time
-
-
-      if (user_checker.length > 0) { //사용자 체크
-
-        sim_data.credit = user_checker[0].credit;
-        sim_data.user_pid = user_checker[0].user_pid;
-        sim_data.user_id = user_checker[0].user_id;
-        sim_data.user_serial = user_checker[0].user_serial;
-
-
-        //user credit check
-
-        if (sim_data.credit >= sim_data.sim_price) { // if credit is to buy
-          // find use to sim
-
-          if (user_sim_checker.length > 0) { // 심이 이미 있는경우
-
-            var user_sim_check = 'expire_match_date  >"' + now + '" AND user_id = "' + buy_sim_data.user_id + '" ';
-            var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
-
-            console.log("sim_data.add_time : " + sim_data.add_time)
-            console.log("user_sim_checker[0].expire_match_date : " + user_sim_checker[0].expire_match_date)
-
-
-            sim_data.msisdn = user_sim_checker[0].msisdn;
-            sim_data.expire_match_date = user_sim_checker[0].expire_match_date + sim_data.add_time;
-            sim_data.imsi = user_sim_checker[0].imsi;
-
-            console.log("SIM EXTEND")
-            buy_sim_data.description = buy_sim_data.mobileType + " / " + sim_data.msisdn;
-            sim_data.credit = sim_data.credit - sim_data.sim_price * 10
-            // sim_data.expire_match_date =   sim_data.expire_match_dat + sim_data.add_time;
-            realm.write(() => {
-              user_checker[0].credit = sim_data.credit; //크래딧 차감
-              user_sim_checker[0].expire_match_date = sim_data.expire_match_date;
-            });
-
-
-            buy_sim_data.error = 100
-
-            buy_sim_msg(buy_sim_data, sim_data)
-          }
-          else { //심이 없는경우
-            var match_sim_check = 'expire_match_date < ' + now + 'AND mobileType = ' + buy_sim_data.Type + ' AND sim_type = 0';
-            var match_sim_checker = realm.objects('SIM').filtered(match_sim_check);
-
-            if (match_sim_checker.length > 0) {
-              console.log("BUY SIM ")
-              buy_sim_data.error = 100
-              sim_data.imsi = match_sim_checker[0].imsi;
-              sim_data.credit = sim_data.credit - sim_data.sim_price * 10;
-              //크래딧 500 차감, 심과 사용자 매칭, tb_credit_history입력
-
-              sim_data.expire_match_date = now + sim_data.add_time;
-
-              realm.write(() => {
-                user_checker[0].credit = sim_data.credit; //크래딧 차감
-                user_checker[0].user_sim_imsi = sim_data.imsi;
-                match_sim_checker[0].user_pid = user_checker[0].user_pid;
-                match_sim_checker[0].user_id = user_checker[0].user_id;
-                match_sim_checker[0].user_serial = user_checker[0].user_serial;
-                match_sim_checker[0].expire_match_date = sim_data.expire_match_date;
-              });
-              sim_data.msisdn = match_sim_checker[0].msisdn;
-
-              buy_sim_msg(buy_sim_data, sim_data)
-              var try_lur = "LUR|TRY|" + sim_data.imsi + "|$" + sim_data.port;
-              process.send({
-                data: try_lur,
-                port: sim_data.port
-              });
-
-            }
-            else {
-              console.log("사용가능할수 있는 심이 없습니다.")
-              var msg = "Policy|CS2|Seq|not available number|-100|";
-              write_log("policy_child buy_sim msg error : " + msg);
-              process.send({
-                data: msg,
-                port: sim_data.port
-              });
-            }
-          }
-
+          });
+          sim_data.imsi = user_checker[0].imsi
+          login_msg(login_data, sim_data);
         }
         else {
-          console.log("크래딧이 부족합니다. ")
-          var msg = "Policy|CS2|Seq|not enough credit|-101|";
-          write_log("policy_child buy_sim msg error : " + msg);
-          process.send({
-            data: msg,
-            port: sim_data.port
-          });
-
+          login_msg(login_data, sim_data);
         }
       }
-      else {
-        console.log(user_checker.length);
-        console.log("존재하지 않는 사용자입니다.")
-        write_log("policy_child buy_sim  error : 존재하지 않는 사용자입니다");
+      else { //심구매하지 않는 유저일경우
+        if (sim_data.join_type == 1) {
+          var mcc = login_data.imsi.slice(0, 3)
+          var mnc = login_data.imsi.slice(3, 5)
+          var imei = imeigc.randomIMEI_fullRandom();
+
+          realm.write(() => {
+            var SIM = realm.create('SIM', {
+              user_id: login_data.user_id,
+              imsi: login_data.imsi,
+              imei: imei,
+              mcc: mcc,
+              mnc: mnc,
+              sim_type: sim_data.join_type,
+            });
+            user_checker[0].user_sim_imsi = login_data.imsi;
+
+          });
+
+          sim_data.imsi = login_data.imsi;
+          login_msg(login_data, sim_data);
+        }
+        else {
+          login_msg(login_data, sim_data);
+        }
+        console.log("policy_child login sim  x");
 
       }
 
     }
-    catch (e) {
-      console.log(e, "buy_sim error")
-      write_log("policy_child buy_sim  error : " + e);
-    }
   }
-
-  function top_up(dictdata) {
-
-    //Policy|CS7|Seq|serial|id|topup_price|join_app_type|description|topup_method|order_id|event_flag|
-    var command_line = dicdata;
-    var command = command_line['command'];
-    var sub_command = command_line['data1'];
-    var seq = command_line['data2'];
-    var user_serial = command_line['data3'];
-    var user_id = command_line['data4'];
-    var topup_price = command_line['data5'];
-    var join_app_type = command_line['data6'];
-    var description = command_line['data7'];
-    var topup_method = command_line['data8'];
-    var order_id = command_line['data9'];
-    var event_flag = command_line['data10'];
-    var port = command_line['port'];
-
-    //update tb_user set credit = credit + 7500 , charge_cnt = charge_cnt+1 , coupon =coupon+1 where pid = 3004
-    //UPDATE tb_user_test set credit = credit + 7500, charge_cnt = charge_cnt + 1, coupon =coupon+1 WHERE pid = user_checker[0].user_pid
+  else { //if user is not found
+    // return command + "|" + sub_command + "|" + seq + "|" + tcp_fd + "|FAIL|";
+    var msg = login_data.command + "|" + login_data.sub_command + "|" + login_data.seq + "|" + login_data.tcp_fd + "|FAIL|";
+    process.send({
+      data: msg,
+      port: login_data.port
+    });
+    console.log("sim x", user_checker[0], msg);
+    write_log("policy_child login user is not found sim x : " + msg)
+  }
+}
 
 
-    var user_check = 'user_id = "' + user_id + '" AND user_serial = "' + user_serial + '"';
+function timeConverter(UNIX_timestamp) {
+  var a = new Date(UNIX_timestamp);
+  var months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+  var year = a.getFullYear();
+  var month = months[a.getMonth()];
+  var date = a.getDate();
+  var hour = a.getHours();
+  var min = a.getMinutes();
+  var sec = a.getSeconds();
+  var time = year + '-' + month + '-' + date + ' ' + hour + ':' + min + ':' + sec;
+  return time;
+}
+
+function fcm_key_renewal(dicdata) {
+  var command_line = dicdata;
+  var command = command_line['command'];
+  var sub_command = command_line['data1'];
+  var seq = command_line['data2'];
+  var user_serial = command_line['data3'];
+  var fcm_key = command_line['data4'];
+  var user_serial_check = 'user_serial = "' + user_serial + '"';
+  var port = command_line['port'];
+  var user_serial_checker = realm.objects('USER').filtered(user_serial_check);
+  if (user_serial_checker.length > 0) {
+    realm.write(() => {
+      user_serial_checker[0].fcm_push_key = fcm_key;
+    });
+    console.log("SUCCESS : fcm_push_key is updated");
+    write_log("policy_child fcm_key_renewal SUCCESS : fcm_push_key is updated");
+    var msg = command + "|" + sub_command + "|" + seq + "|SUCCESS|";
+    var dbmsg = "DB|D02|" + user_serial + "|" + fcm_key + "|";
+    process.send({
+      data: msg,
+      port: port
+    });
+    addon_child.send_data(dbmsg);
+    console.log(msg);
+    write_log("policy_child fcm_key_renewal SUCCESS  dbmsg : " + dbmsg + " msg : " + msg);
+  }
+  else {
+    console.log("ERR-fcm_push_key: user_SERIAL is not found");
+    write_log("policy_child fcm_key_renewal ERR: user_SERIAL is not found");
+
+    // return command + "|" + sub_command + "|" + seq + "|" + tcp_fd + "|FAIL|";
+    var msg = command + "|" + sub_command + "|" + seq + "|FAIL|";
+    process.send({
+      data: msg,
+      port: port
+    });
+    console.log(msg);
+    write_log("policy_child fcm_key_renewal ERR : " + msg);
+  }
+}
+
+function voip_key_renewal(dicdata) {
+  var command_line = dicdata;
+  var command = command_line['command'];
+  var sub_command = command_line['data1'];
+  var seq = command_line['data2'];
+  var user_serial = command_line['data3'];
+  var voip_key = command_line['data4'];
+  var port = command_line['port'];
+
+  var user_serial_check = 'user_serial = "' + user_serial + '"';
+  var user_serial_checker = realm.objects('USER').filtered(user_serial_check);
+  if (user_serial_checker.length > 0) {
+    realm.write(() => {
+      user_serial_checker[0].voip_push_key = voip_key;
+    });
+    var msg = command + "|" + sub_command + "|" + seq + "|SUCCESS|";
+    var dbmsg = "DB|D03|" + user_serial + "|" + voip_key + "|";
+
+    process.send({
+      data: msg,
+      port: port
+    });
+    addon_child.send_data(dbmsg);
+    console.log(msg);
+    write_log("policy_child voip_key_renewal : " + msg);
+
+  }
+  else {
+    // return command + "|" + sub_command + "|" + seq + "|" + tcp_fd + "|FAIL|";
+    var msg = command + "|" + sub_command + "|" + seq + "|FAIL|";
+    process.send({
+      data: msg,
+      port: port
+    });
+    console.log(msg);
+    write_log("policy_child voip_key_renewal : " + msg);
+
+  }
+}
+//recv : Policy|TS07|Seq|serial|id|auto_flag|
+//send : websock_fd, id , auto_flag
+
+function auto_flag_renewal(dicdata) {
+
+  var command_line = dicdata;
+  var command = command_line['command'];
+  var sub_command = command_line['data1'];
+  var seq = command_line['data2'];
+  var user_serial = command_line['data3'];
+  var id = command_line['data4'];
+  var auto_flag = command_line['data5'];
+  var port = command_line['port'];
+
+  try {
+    var user_check = 'user_serial = "' + user_serial + '" AND user_id = "' + id + '"';
     var user_checker = realm.objects('USER').filtered(user_check);
-    var sim_checker = realm.objects('SIM').filtered(sim_check);
-    var user_sim_check = 'user_pid =  "' + user_checker[0].user_pid + '"';
-    var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
 
-    if (user_checker.length > 0 && user_sim_checker.length > 0) {
+    if (user_checker.length == 1) { //user 정보가 맞을경우
 
-      var credit = user_checker[0].credit;
-      var user_pid = user_checker[0].user_pid;
-      var user_id = user_checker[0].user_id;
-      var user_serial = user_checker[0].user_serial;
-      var credit = user_checker[0].credit;
-      var credit = user_checker[0].credit;
-      var msisdn = user_sim_checker[0].msisdn;
-      credit = credit + topup_price;
+      var user_pid = user_checker[0].user_pid
+
       realm.write(() => {
-        user_checker[0].credit = credit
-      })
-      var db_top_up_msg = "DB|D06|" + user_pid + "|" + user_id + "|" +
-        user_serial + "|" + credit + "|1|1|" + description + "|" + timeConverter(Date.now()) + "|" +
-        credit + "|" + event_flag + "|" + msisdn + "|ACCOUNT|0|TOPUP|";
-      var msg = "Policy|CS7|" + seq + "|success|" + topup_price + "|";
-      write_log("policy_child top_up  msg : " + msg);
-      write_log("policy_child top_up  dbmsg : " + db_top_up_msg);
+        user_checker[0].auto_flag = parseInt(auto_flag);
+      });
+      console.log("auto_flag_renewal success");
+      //Policy|CS6|success|auto_flag|
+      var msg = command + "|" + sub_command + "|" + seq + "|success|" + auto_flag + "|"
+      var dbmsg = "DB|D04|" + user_pid + "|" + auto_flag + "|"
+
+      write_log("policy_child auto_flag_renewal msg : " + msg);
+      write_log("policy_child auto_flag_renewal dbmsg : " + dbmsg);
+
+
       process.send({
         data: msg,
         port: port
       });
-      addon_child.send_data(db_top_up_msg);
+      addon_child.send_data(dbmsg);
+
+    }
+    else { // user 정보가 맞지 않을경우
+      console.log("auto_flag renewal false : 맞지 않는 유저 정보입니다.");
+      var msg = command + "|" + sub_command + "|" + seq + "|fail|" + auto_flag + "|"
+      process.send({
+        data: msg,
+        port: port
+      });
+      write_log("policy_child auto_flag_renewal error msg : " + msg);
+
+    }
+
+  }
+  catch (e) {
+    console.log(e, " auto_flag_renewal error")
+    write_log("policy_child auto_flag_renewal error: " + e);
+
+  }
+}
+
+function buy_sim_msg(buy_sim_data, sim_data) {
+  var now = Date.now();
+
+  var msg = buy_sim_data.command + "|CS1|" + buy_sim_data.seq + "|" + sim_data.msisdn + "|" + sim_data.imsi + "|" + sim_data.credit + "|" + timeConverter(sim_data.expire_match_date) + "|0:0:0|0:0:0|0:0:0|0:0:0|0:0:0|0|0|0|";
+  process.send({
+    data: msg,
+    port: buy_sim_data.port
+  });
+  write_log("policy_child buy_sim msg : " + msg);
+
+  var buy_sim_msg = "DB|D05|" + sim_data.credit + "|" + sim_data.user_pid + "|" + timeConverter(sim_data.expire_match_date) + "|" + sim_data.imsi + "|" + sim_data.user_id + "|" + sim_data.user_serial + "|" + sim_data.msisdn + "|" + sim_data.sim_price * 10 + "|0|SIM|" + sim_data.credit * 10 + "|" + buy_sim_data.erroer + "|" + timeConverter(now) + "|" + buy_sim_data.description + "|"
+  addon_child.send_data(buy_sim_msg);
+  write_log("policy_child buy_sim dbmsg : " + buy_sim_msg);
+
+}
+
+function buy_sim(dicdata) {
+  //Policy|CS2|Seq|serial|id|carrier|join_app_type|order_id|event_flag|
+
+
+  var buy_sim_data = new Object();
+  var sim_data = new Object();
+
+  var command_line = dicdata;
+  buy_sim_data.command = command_line['command'];
+  buy_sim_data.sub_command = command_line['data1'];
+  buy_sim_data.seq = command_line['data2'];
+  buy_sim_data.user_serial = command_line['data3'];
+  buy_sim_data.user_id = command_line['data4'];
+  buy_sim_data.mobileType = command_line['data5'];
+  buy_sim_data.port = command_line['port'];
+
+  buy_sim_data.error = 0
+  // var join_app_type = parseInt(command_line['data6']);//everytt thepay 사용자 구준용도
+  //SIM에서 imsi가 존재해야하고 user_id,user_pid가 없어야한다.
+  var now = Date.now();
+
+
+
+
+  sim_data.sim_price = 0
+  sim_data.add_time = 0
+
+  sim_data.msisdn = 0
+  sim_data.credit = 0
+  sim_data.user_pid = 0
+  sim_data.user_id = 0
+  sim_data.user_serial = 0
+
+  sim_data.msisdn = 0
+  sim_data.expire_match_date = 0
+  sim_data.imsi = 0
+
+
+  buy_sim_data.Type = 0;
+  if (buy_sim_data.mobileType == 'smart') {
+    buy_sim_data.Type = 1;
+  }
+  else if (buy_sim_data.mobileType == 'globe') {
+    buy_sim_data.Type = 2;
+  }
+  else if (buy_sim_data.mobileType == 'Telkom') {
+    buy_sim_data.Type = 3;
+  }
+  else if (buy_sim_data.mobileType == 'XL') {
+    buy_sim_data.Type = 4;
+  }
+  // var mcc = match_sim_checker[0].mcc;
+  // var mnc = match_sim_checker[0].mnc;
+
+  var mobile_type = buy_sim_data.mobileType.toUpperCase();
+  var global_carrier_check = 'carrier = "' + mobile_type + '"';
+  let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+  console.log(mobile_type)
+
+  try {
+    //매치가 되어있지않는 심에 대한 필터링
+    var user_check = 'user_id = "' + buy_sim_data.user_id + '" AND user_serial = "' + buy_sim_data.user_serial + '"';
+    var user_checker = realm.objects('USER').filtered(user_check);
+
+
+
+    sim_data.sim_price = global_carrier_checker[0].simprice
+    sim_data.add_time = global_carrier_checker[0].add_time
+
+
+    if (user_checker.length > 0) { //사용자 체크
+
+      sim_data.credit = user_checker[0].credit;
+      sim_data.user_pid = user_checker[0].user_pid;
+      sim_data.user_id = user_checker[0].user_id;
+      sim_data.user_serial = user_checker[0].user_serial;
+
+
+      //user credit check
+
+      if (sim_data.credit >= sim_data.sim_price) { // if credit is to buy
+        // find use to sim
+
+        if (user_sim_checker.length > 0) { // 심이 이미 있는경우
+
+          var user_sim_check = 'expire_match_date  >"' + now + '" AND user_id = "' + buy_sim_data.user_id + '" ';
+          var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+
+          console.log("sim_data.add_time : " + sim_data.add_time)
+          console.log("user_sim_checker[0].expire_match_date : " + user_sim_checker[0].expire_match_date)
+
+
+          sim_data.msisdn = user_sim_checker[0].msisdn;
+          sim_data.expire_match_date = user_sim_checker[0].expire_match_date + sim_data.add_time;
+          sim_data.imsi = user_sim_checker[0].imsi;
+
+          console.log("SIM EXTEND")
+          buy_sim_data.description = buy_sim_data.mobileType + " / " + sim_data.msisdn;
+          sim_data.credit = sim_data.credit - sim_data.sim_price * 10
+          // sim_data.expire_match_date =   sim_data.expire_match_dat + sim_data.add_time;
+          realm.write(() => {
+            user_checker[0].credit = sim_data.credit; //크래딧 차감
+            user_sim_checker[0].expire_match_date = sim_data.expire_match_date;
+          });
+
+
+          buy_sim_data.error = 100
+
+          buy_sim_msg(buy_sim_data, sim_data)
+        }
+        else { //심이 없는경우
+          var match_sim_check = 'expire_match_date < ' + now + 'AND mobileType = ' + buy_sim_data.Type + ' AND sim_type = 0';
+          var match_sim_checker = realm.objects('SIM').filtered(match_sim_check);
+
+          if (match_sim_checker.length > 0) {
+            console.log("BUY SIM ")
+            buy_sim_data.error = 100
+            sim_data.imsi = match_sim_checker[0].imsi;
+            sim_data.credit = sim_data.credit - sim_data.sim_price * 10;
+            //크래딧 500 차감, 심과 사용자 매칭, tb_credit_history입력
+
+            sim_data.expire_match_date = now + sim_data.add_time;
+
+            realm.write(() => {
+              user_checker[0].credit = sim_data.credit; //크래딧 차감
+              user_checker[0].user_sim_imsi = sim_data.imsi;
+              match_sim_checker[0].user_pid = user_checker[0].user_pid;
+              match_sim_checker[0].user_id = user_checker[0].user_id;
+              match_sim_checker[0].user_serial = user_checker[0].user_serial;
+              match_sim_checker[0].expire_match_date = sim_data.expire_match_date;
+            });
+            sim_data.msisdn = match_sim_checker[0].msisdn;
+
+            buy_sim_msg(buy_sim_data, sim_data)
+            var try_lur = "LUR|TRY|" + sim_data.imsi + "|$" + sim_data.port;
+            process.send({
+              data: try_lur,
+              port: sim_data.port
+            });
+
+          }
+          else {
+            console.log("사용가능할수 있는 심이 없습니다.")
+            var msg = "Policy|CS2|Seq|not available number|-100|";
+            write_log("policy_child buy_sim msg error : " + msg);
+            process.send({
+              data: msg,
+              port: sim_data.port
+            });
+          }
+        }
+
+      }
+      else {
+        console.log("크래딧이 부족합니다. ")
+        var msg = "Policy|CS2|Seq|not enough credit|-101|";
+        write_log("policy_child buy_sim msg error : " + msg);
+        process.send({
+          data: msg,
+          port: sim_data.port
+        });
+
+      }
     }
     else {
-      console.log("ERROR top_up");
-      write_log("policy_child top_up error");
+      console.log(user_checker.length);
+      console.log("존재하지 않는 사용자입니다.")
+      write_log("policy_child buy_sim  error : 존재하지 않는 사용자입니다");
+
     }
+
   }
+  catch (e) {
+    console.log(e, "buy_sim error")
+    write_log("policy_child buy_sim  error : " + e);
+  }
+}
+
+function top_up(dictdata) {
+
+  //Policy|CS7|Seq|serial|id|topup_price|join_app_type|description|topup_method|order_id|event_flag|
+  var command_line = dicdata;
+  var command = command_line['command'];
+  var sub_command = command_line['data1'];
+  var seq = command_line['data2'];
+  var user_serial = command_line['data3'];
+  var user_id = command_line['data4'];
+  var topup_price = command_line['data5'];
+  var join_app_type = command_line['data6'];
+  var description = command_line['data7'];
+  var topup_method = command_line['data8'];
+  var order_id = command_line['data9'];
+  var event_flag = command_line['data10'];
+  var port = command_line['port'];
+
+  //update tb_user set credit = credit + 7500 , charge_cnt = charge_cnt+1 , coupon =coupon+1 where pid = 3004
+  //UPDATE tb_user_test set credit = credit + 7500, charge_cnt = charge_cnt + 1, coupon =coupon+1 WHERE pid = user_checker[0].user_pid
+
+
+  var user_check = 'user_id = "' + user_id + '" AND user_serial = "' + user_serial + '"';
+  var user_checker = realm.objects('USER').filtered(user_check);
+  var sim_checker = realm.objects('SIM').filtered(sim_check);
+  var user_sim_check = 'user_pid =  "' + user_checker[0].user_pid + '"';
+  var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+
+  if (user_checker.length > 0 && user_sim_checker.length > 0) {
+
+    var credit = user_checker[0].credit;
+    var user_pid = user_checker[0].user_pid;
+    var user_id = user_checker[0].user_id;
+    var user_serial = user_checker[0].user_serial;
+    var credit = user_checker[0].credit;
+    var credit = user_checker[0].credit;
+    var msisdn = user_sim_checker[0].msisdn;
+    credit = credit + topup_price;
+    realm.write(() => {
+      user_checker[0].credit = credit
+    })
+    var db_top_up_msg = "DB|D06|" + user_pid + "|" + user_id + "|" +
+      user_serial + "|" + credit + "|1|1|" + description + "|" + timeConverter(Date.now()) + "|" +
+      credit + "|" + event_flag + "|" + msisdn + "|ACCOUNT|0|TOPUP|";
+    var msg = "Policy|CS7|" + seq + "|success|" + topup_price + "|";
+    write_log("policy_child top_up  msg : " + msg);
+    write_log("policy_child top_up  dbmsg : " + db_top_up_msg);
+    process.send({
+      data: msg,
+      port: port
+    });
+    addon_child.send_data(db_top_up_msg);
+  }
+  else {
+    console.log("ERROR top_up");
+    write_log("policy_child top_up error");
+  }
+}

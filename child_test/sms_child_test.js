@@ -12,6 +12,14 @@ var options = {
   encoding: 'utf8',
   flag: 'a'
 };
+// realm.addListener("change", (realm, changes, schema) => {
+//   write_log("realm.change : " + changes)
+//
+//   if (realm.isInTransaction) {
+//     write_log("realm.change isInTransaction")
+//     realm.commitTransaction();
+//   }
+// });
 
 function write_log(data) {
   var dt = new Date();
@@ -22,6 +30,8 @@ function write_log(data) {
 }
 
 var realm = new Realm({
+  deleteRealmIfMigrationNeeded: true,
+  disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
   schemaVersion: 35
 });
@@ -152,7 +162,7 @@ function sms_cnt_check(send_sms_cnt, user_sim_checker) {
 function sms_out_msg(sms_out_data, sim_data) {
   var now = Date.now();
   //SMS|SMSOUT|SEQ|과금금액|imei|tmsi|kc|cksn|msisdn|user_sim_checker[0].send_sms_cnt|simbank_id|sim_serial_no|error|
-  var msg = "SMS|SMSOUT|" + sms_out_data.seq + "|" + sim_data.smsout_price + "|" + sim_data.imei + "|" + sim_data.tmsi + "|" + sim_data.kc + "|" + sim_data.cksn + "|" + sim_data.msisdn + "|" + sim_data.send_sms_cnt + "|" + sim_data.sim_id + "|" + sim_data.sim_serial_no + "|" + sms_out_data.error + "|" + sim_data.lac + "|" + sim_data.fcm_push_key + "|" + sim_data.join_type + "|" + sim_data.app_type + "|" + sim_data.smsc + "|" + sim_data.mp_ip + "|" + sim_data.mp_port + "|"
+  var msg = "SMS|SMSOUT|" + sms_out_data.seq + "|" + sim_data.smsout_price + "|" + sim_data.imei + "|" + sim_data.tmsi + "|" + sim_data.kc + "|" + sim_data.cksn + "|" + sim_data.msisdn + "|" + sim_data.send_sms_cnt + "|" + sim_data.sim_id + "|" + sim_data.sim_serial_no + "|" + sms_out_data.error + "|" + sim_data.lac + "|" + sim_data.fcm_push_key + "|" + 0 + "|" + sim_data.app_type + "|" + sim_data.smsc + "|" + sim_data.mp_ip + "|" + sim_data.mp_port + "|"
 
   process.send({
     data: msg,
@@ -372,12 +382,12 @@ function sms_out(dictdata) {
 
 function sms_in_msg(sms_in_data, sim_data) {
   var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
-  var msg = sms_in_data.command + "|" + sms_in_data.sub_command + "|" + sms_in_data.seq + "|" + sim_data.user_serial + "|" + sim_data.user_id + "|" + sim_data.fcm_push_key + "|" + sim_data.join_type + "|" + sim_data.app_type + "|"
+  var msg = sms_in_data.command + "|" + sms_in_data.sub_command + "|" + sms_in_data.seq + "|" + sim_data.user_serial + "|" + sim_data.user_id + "|" + sim_data.fcm_push_key + "|" + 0 + "|" + sim_data.app_type + "|" + 0 + "|"
   process.send({
     data: msg,
     port: sms_in_data.port
   });
-
+  write_log(msg)
   var db_sms_in_msg = "DB|D08|SMS-IN|" + sim_data.user_pid + "|" + sim_data.user_serial + "|" + sim_data.user_id + "|" + sim_data.credit + "|" +
     sim_data.imsi + "|" + sms_in_data.outbound + "|" + sim_data.simbank_name + "|" + sim_data.sim_serial_no + "|" + sms_in_data.description + "|" + sms_in_data.price + "|" +
     sms_in_data.credit_flag + "|" + sim_data.area_name + "|" + sms_in_data.content + "|" + sms_in_data.type + "|" + sms_in_data.TYPE + "|" + now + "|" + 0 + "|" + 0 + "|";
@@ -389,7 +399,7 @@ function sms_in_msg(sms_in_data, sim_data) {
 function sms_in(dictdata) {
   //IN - SMS|SMSIN|SEQ|sim_imsi|sms_pdu|
   //OUT - SMS|SMSIN|SEQ|tcp_id|id|push_key|join_app_type|os_type|
-
+  console.log("sms_in")
   var sms_in_data = new Object();
   var sim_data = new Object();
 
@@ -436,16 +446,21 @@ function sms_in(dictdata) {
   sim_data.msisdn = 0
 
   sim_data.area_name = 0
+  console.log(sms_in_data.sim_imsi)
 
-
-  var user_sim_check = 'imsi = "' + sms_in_data.sim_imsi + '" AND expire_match_date > ' + now;
+  var user_sim_check = 'imsi = "' + sms_in_data.sim_imsi + '"';
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
-  var user_check = 'user_sim_imsi = "' + sms_in_data.sim_imsi + '" AND user_id = "' + sim_data.user_id + '"';
+
+
+  console.log(user_sim_checker[0].user_id)
+  var user_check = 'user_id = "' + user_sim_checker[0].user_id + '" AND user_sim_imsi = "' + user_sim_checker[0].imsi + '"';
   let user_checker = realm.objects('USER').filtered(user_check);
 
+  console.log("111")
 
 
   if (user_sim_checker.length > 0 && user_checker.length > 0) {
+    console.log("22222")
 
 
 
@@ -477,9 +492,13 @@ function sms_in(dictdata) {
 
 
     if (sim_data.join_type == 1) {
+      console.log("33333")
+
       sms_in_msg(sms_in_data, sim_data)
     }
     else {
+      console.log("44444")
+
       var phone_number = sms_in_data.outbound
 
       if (phone_number[0] != 0) {
@@ -493,6 +512,8 @@ function sms_in(dictdata) {
     }
   }
   else {
+    console.log("55555")
+
     sms_in_data.description = sms_in_data.outbound + " / " + 0;
     sms_in_msg(sms_in_data, sim_data)
 

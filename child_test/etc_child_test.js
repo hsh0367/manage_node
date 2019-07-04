@@ -15,17 +15,28 @@ var connection = mysql.createConnection({
   user: 'everytt',
   password: 'dpqmflTT1#',
   database: 'smartTT'
-
 });
 
 connection.connect(function(err) {
   if (err) throw err;
   console.log("Connected!");
 });
+connection.on('error', function(err) {
+  if (error.code == 'PROTOCOL_CONNECTION_LOST') {
+    var connection = mysql.createConnection({
+      host: 'everytt-rds.cf5whdjkixxd.ap-southeast-1.rds.amazonaws.com',
+      user: 'everytt',
+      password: 'dpqmflTT1#',
+      database: 'smartTT'
+    });
+  }
+});
 
 
 var simlist = [];
 let realm = new Realm({
+  deleteRealmIfMigrationNeeded: true,
+  disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
   schemaVersion: 35
 });
@@ -36,6 +47,14 @@ var options = {
   encoding: 'utf8',
   flag: 'a'
 };
+// realm.addListener("change", (realm, changes, schema) => {
+//   write_log("realm.change : " + changes)
+//
+//   if (realm.isInTransaction) {
+//     write_log("realm.change isInTransaction")
+//     realm.commitTransaction();
+//   }
+// });
 
 function write_log(data) {
   var dt = new Date();
@@ -379,7 +398,7 @@ function DB_synchronization(dictdata) {
 
                 carrier_id: result[i].carrier_id,
                 country: result[i].country,
-                country_code: result.country_code,
+                country_code: result[i].country_code,
                 carrier: result[i].carrier,
                 mcc: result[i].mcc,
                 mnc: result[i].mnc,
@@ -528,12 +547,17 @@ function sim_balance_check(dictdata) {
     let user_carrier_checker = realm.objects('GLOBALCARRIER').filtered(user_carrier_check);
     var etc_blance_flag = user_sim_checker[0].etc_blance_flag
     if (user_carrier_checker.length > 0) {
+      var mp_ip = user_carrier_checker[0].mp_ip;
+      var mp_port = user_carrier_checker[0].mp_port;
+
       var msg = "MP|BALANCE|" + user_sim_checker[0].imsi + "|" + user_sim_checker[0].imei + "|" + user_sim_checker[0].tmsi + "|" + user_sim_checker[0].kc + "|" + user_sim_checker[0].cksn + "|" + user_sim_checker[0].msisdn + "|" + user_sim_checker[0].lac + "|" + user_sim_checker[0].sim_id + "|" + user_sim_checker[0].sim_serial_no + "|" + user_carrier_checker[0].balance_ussd + "|" + user_carrier_checker[0].smsc + "|$" + port;
       // var msg = "MP|BALANCE|" + user_sim_checker[0].imsi + "|";
 
       process.send({
         data: msg,
-        port: port
+        port: mp_port,
+        ip: mp_ip
+
       });
       write_log("[ETC] sim_balance_check : " + msg);
       etc_que.add({
@@ -582,11 +606,15 @@ function sim_msisdn_check(dictdata) {
     let user_carrier_checker = realm.objects('GLOBALCARRIER').filtered(user_carrier_check);
 
     if (user_carrier_checker.length > 0) {
+      var mp_ip = user_carrier_checker[0].mp_ip;
+      var mp_port = user_carrier_checker[0].mp_port;
 
       var msg = "MP|MSISDN|" + imsi + "|" + imei + "|" + tmsi + "|" + kc + "|" + cksn + "|" + lac + "|" + sim_id + "|" + sim_serial_no + "|" + msisdn_ussd + "|" + smsc + "|";
       process.send({
         data: msg,
-        port: port
+        port: mp_port,
+        ip: mp_ip
+
       });
       write_log("[ETC] sim_msisdn_check : " + msg);
       etc_que.add({
@@ -650,8 +678,15 @@ function table_view(dictdata) {
   write_log("table_view")
   if (chosechema == 'USER') {
     console.log("USER RESULT");
-    console.log(realm.objects('USER').length);
     console.log(realm.objects('USER'));
+    let user_checker = realm.objects('USER')
+
+
+    var user_json = JSON.stringify(user_checker);
+    fs.writeFile('realm_user.json', user_json, 'utf8', function(err) {
+      if (err) throw err;
+      console.log('complete');
+    });
   }
   else if (chosechema == 'SIM') {
     // console.log("SIM RESULT");
@@ -668,20 +703,22 @@ function table_view(dictdata) {
 
       console.log(sim_checker.length)
       console.log(sim_checker)
+      var sim_json = JSON.stringify(sim_checker);
+      fs.writeFile('realm_sim.json', sim_json, 'utf8', function(err) {
+        if (err) throw err;
+        console.log('complete');
+      });
     }
     else {
       console.log("사용가능 심이 없습니다.")
     }
   }
   else if (chosechema == 'RATE') {
-    var rate_check = 'area_no = ' + parseInt(content) + '';
-
-    let rate_checker = realm.objects('RATE').filtered(rate_check)
+    let rate_checker = realm.objects('RATE')
     if (rate_checker.length > 0) {
       console.log(rate_checker.length)
-      for (var i = 0; rate_checker.length > i; i++) {
-        console.log(rate_checker[i])
-      }
+      console.log(rate_checker[i])
+
     }
     else {
       console.log("RATE가 없습니다.")
@@ -691,6 +728,12 @@ function table_view(dictdata) {
 
     let carrier_checker = realm.objects('GLOBALCARRIER')
     console.log(carrier_checker)
+
+    var carrier_json = JSON.stringify(carrier_checker);
+    fs.writeFile('realm_carrier.json', carrier_json, 'utf8', function(err) {
+      if (err) throw err;
+      console.log('complete');
+    });
     // if (carrier_checker.length > 0) {
     //   console.log(carrier_checker.length)
     //   for (var i = 0; carrier_checker.length > i; i++) {
@@ -708,6 +751,7 @@ function table_view(dictdata) {
     console.log("SIM RESULT");
     console.log(realm.objects('SIM').length);
     console.log(realm.objects('SIM'));
+
   }
   else {
     console.log("table_view command not found");
@@ -719,15 +763,17 @@ function point_death(dictdata) {
   var id = dictdata['data3'];
 
   try {
-    write_log("policy_child death : " + dictdata)
+    write_log("point death : " + dictdata)
 
     if (chosechema == 'SIM') {
-      var user_sim_check = 'user_id =  "' + id + '"';
+      var user_sim_check = 'imsi =  "' + id + '"';
       var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
 
       realm.write(() => {
         realm.delete(user_sim_checker);
         console.log(id + " SIM 완료")
+        write_log(id + " SIM 완료")
+
       })
     }
     else if (chosechema == 'USER') {
@@ -738,6 +784,7 @@ function point_death(dictdata) {
       realm.write(() => {
         realm.delete(user_checker);
         console.log(id + " USER 완료")
+        write_log(id + " USER 완료")
       })
     }
     else if (chosechema == 'RATE') {
@@ -749,6 +796,8 @@ function point_death(dictdata) {
       realm.write(() => {
         realm.delete(rate_checker);
         console.log(id + " RATE 완료")
+        write_log(id + " RATE 완료")
+
       })
     }
     else if (chosechema == 'CARRIER') {
@@ -760,12 +809,14 @@ function point_death(dictdata) {
       realm.write(() => {
         realm.delete(carrier_checker);
         console.log(id + " CARRIER 완료")
+        write_log(id + " CARRIER 완료")
+
       })
     }
   }
   catch (err) {
     console.log(err)
-    write_log("policy_child death err: " + err)
+    write_log("point death err: " + err)
   }
 }
 
@@ -779,28 +830,36 @@ function death(dictdata) {
       realm.write(() => {
         var allsim = realm.objects('SIM');
         realm.delete(allsim);
-        console.log("전체 SIM 완료")
+        console.log("전체 SIM 삭제 완료")
+        write_log("전체 SIM 삭제 완료")
+
       })
     }
     else if (chosechema == 'USER') {
       realm.write(() => {
         var alluser = realm.objects('USER');
         realm.delete(alluser);
-        console.log("전체 USER 완료")
+        console.log("전체 USER 삭제 완료")
+        write_log("전체 USER 삭제 완료")
+
       })
     }
     else if (chosechema == 'RATE') {
       realm.write(() => {
         var allrate = realm.objects('RATE');
         realm.delete(allrate);
-        console.log("전체 RATE 완료")
+        console.log("전체 RATE 삭제 완료")
+        write_log("전체 RATE 삭제 완료")
+
       })
     }
     else if (chosechema == 'CARRIER') {
       realm.write(() => {
         var allcarrier = realm.objects('GLOBALCARRIER');
         realm.delete(allcarrier);
-        console.log("전체 CARRIER 완료")
+        console.log("전체 CARRIER 삭제 완료")
+        write_log("전체 CARRIER 삭제 완료")
+
       })
     }
     else if (chosechema == 'ALL') {
@@ -810,13 +869,15 @@ function death(dictdata) {
         var allsim = realm.objects('SIM');
         realm.delete(alluser);
         realm.delete(allsim);
-        console.log("전체 삭제 완료")
+        console.log("전체 컬럼 삭제 완료")
+        write_log("전체 컬럼 삭제 완료")
+
       })
     }
   }
   catch (err) {
     console.log(err)
-    write_log("policy_child death err: " + err)
+    write_log(" death err: " + err)
   }
 }
 
