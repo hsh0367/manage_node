@@ -390,27 +390,27 @@ function QUE(dictdata) {
 
 
 function tt_lur_update(user_sim_checker, dictdata) {
+  var command_line = dictdata['command']
   var now = Date.now();
 
-  var command_line = dictdata['command']
-  var conID = dictdata['data2']
-  var imsi = dictdata['data3']
-  var tmsi = dictdata['data4']
-  var lac = dictdata['data5']
-  var arfcn = parseInt(dictdata['data6'])
-  var kc = dictdata['data7']
-  var cksn = parseInt(dictdata['data8'])
-  var mcc = dictdata['data9']
-  var mnc = dictdata['data10']
-  var cell_id = dictdata['data11']
-  var bsic = dictdata['data12']
-  var lur_date = parseInt(dictdata['data13'])
   write_log("simchecker " + user_sim_checker.toString())
   write_log("dictdata " + dictdata.toString())
-  write_log(tmsi + "|" + lac + "|" + arfcn + "|" + kc + "|" + cksn + "|" + mcc + "|" + mnc + "|" + cell_id + "|" + bsic + "|" + lur_date + "|")
 
   if (dictdata['data1'] == 'reTMSI') {
     // reTMSI|conID|imsi|tmsi|lac|arfcn|kc|cksn|mcc|mnc|cellid|bsic|lur_time|
+    var conID = dictdata['data2']
+    var imsi = dictdata['data3']
+    var tmsi = dictdata['data4']
+    var lac = dictdata['data5']
+    var arfcn = parseInt(dictdata['data6'])
+    var kc = dictdata['data7']
+    var cksn = parseInt(dictdata['data8'])
+    var mcc = dictdata['data9']
+    var mnc = dictdata['data10']
+    var cell_id = dictdata['data11']
+    var bsic = dictdata['data12']
+    var lur_date = parseInt(dictdata['data13'])
+    write_log(tmsi + "|" + lac + "|" + arfcn + "|" + kc + "|" + cksn + "|" + mcc + "|" + mnc + "|" + cell_id + "|" + bsic + "|" + lur_date + "|")
 
 
     var lur_check = user_sim_checker[0].lur_check;

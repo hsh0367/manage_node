@@ -60,28 +60,56 @@ function data_test(msg) {
     msg: msg
   });
 }
-var connection = mysql.createConnection({
+
+var config = {
+  connectTimeout: 1000,
   host: 'everytt-rds.cf5whdjkixxd.ap-southeast-1.rds.amazonaws.com',
   user: 'everytt',
   password: 'dpqmflTT1#',
   database: 'smartTT'
-});
-
-connection.connect(function(err) {
-  if (err) throw err;
+}
+var connection = mysql.createConnection(config);
+connection.connect(function(error) {
+  if (error) throw error;
   console.log("Connected!");
+  write_log("MYSQL Connected!");
 });
-connection.on('error', function(err) {
-  if(error.code =='PROTOCOL_CONNECTION_LOST' ){
-    var connection = mysql.createConnection({
-      host: 'everytt-rds.cf5whdjkixxd.ap-southeast-1.rds.amazonaws.com',
-      user: 'everytt',
-      password: 'dpqmflTT1#',
-      database: 'smartTT'
-    });
+handleDisconnect(connection);
 
-  }
-});
+function handleDisconnect(client) {
+  client.on('error', function(error) {
+    if (!error.fatal) return;
+    if (error.code !== 'PROTOCOL_CONNECTION_LOST') throw err;
+    write_log('> Re-connecting lost MySQL connection: ' + error.stack);
+    client = mysql.createConnection(client.config);
+    handleDisconnect(client);
+    client.connect();
+  });
+};
+
+// var connection = mysql.createConnection({
+//   host: 'everytt-rds.cf5whdjkixxd.ap-southeast-1.rds.amazonaws.com',
+//   user: 'everytt',
+//   password: 'dpqmflTT1#',
+//   database: 'smartTT'
+// });
+//
+// connection.connect(function(err) {
+//   if (err) throw err;
+//   console.log("Connected!");
+//   write_log("MYSQL Connected!");
+//
+// });
+// connection.on('error', function(err) {
+//   if (error.code == 'PROTOCOL_CONNECTION_LOST') {
+//     connection.connect(function(err) {
+//       if (err) throw err;
+//       console.log("Connected!");
+//       write_log("MYSQL REConnected!");
+//     });
+//   }
+// });
+
 function parser(data) {
   var str = data;
   var command_divied = str.split("END");

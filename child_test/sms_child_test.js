@@ -12,14 +12,6 @@ var options = {
   encoding: 'utf8',
   flag: 'a'
 };
-// realm.addListener("change", (realm, changes, schema) => {
-//   write_log("realm.change : " + changes)
-//
-//   if (realm.isInTransaction) {
-//     write_log("realm.change isInTransaction")
-//     realm.commitTransaction();
-//   }
-// });
 
 function write_log(data) {
   var dt = new Date();
@@ -62,7 +54,7 @@ function command_classifier(data) {
       break;
 
     default:
-      console.log("[CALL] not find sub command");
+      console.log("[SMS] not find sub command");
   }
 }
 
@@ -97,45 +89,52 @@ function area_no_check(msisdn) { // return area_no
   }
 }
 
+function is_local_check(outbound, imsi) {
 
-function is_local_check(outbound) {
-  //1 is local
-  //2 is sip
-  // 0 is not number
-  console.log(outbound)
-  if (outbound[0] == '0') {
-    return outbound
+  // return phone_number is local
+  // return 0 is not local number sip
+  // return 1 is not phone_number
+
+  var number = '' + outbound;
+  var outbound_1 = number.slice(0, 1)
+  console.log("is local : " + number);
+  write_log("is local : " + number)
+
+  //앞자리가 0이면 기본적으로 로컬에 전화를 거는것이므로 전화번호 반환
+  if (outbound_1 == '0') {
+    // is local
+    console.log(number)
+    return number
+
   }
   else {
+    var carrier_id = imsi.slice(0, 5)
+    var global_carrier_check = 'carrier_id = ' + carrier_id + '';
+    var global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+    if (global_carrier_checker.length > 0) {
+      //첫째 자리가 0이 아닐경우
+      //고객이 가지고 있는 sim의 imsi 와 global_carrier에 가지고 있는 통신사 코드를 비교하여 국가 코드를 받아
+      //국가코드와 같으면 로컬로 판단한다.
 
-    return 0
+      var country_code = '' + global_carrier_checker[0].country_code
+      var code_length = country_code.length
+      write_log("dddd" + code_length)
+      var outbound_code = number.slice(0, code_length);
+      write_log("xxxx" + outbound_code)
+      if (outbound_code == country_code) { //is local
+        write_log("is local " + number)
+        return number
+      }
+      else { // is sip
+        write_log("is not local " + number)
+        return 0
+      }
+    }
+    else { // is not phone_number
+      return 1
+    }
   }
 }
-
-// function is_local_check(outbound) {
-//   //1 is local
-//   //2 is sip
-//   // 0 is not number
-//   var outbound_1 = outbound.slice(0, 1)
-//   console.log(outbound_1)
-//   if (outbound_1 == '0') {
-//     // is local
-//     var country_number = global_value.country_code;
-//     return outbound
-//   }
-//   else {
-//     country = outbound.slice(0, 2)
-//     console.log(country)
-//     if (global_value.country_code == parseInt(country)) {
-//       // is local
-//       return outbound;
-//     }
-//     else {
-//       // is sip
-//       return 0
-//     }
-//   }
-// }
 
 function filterInt(value) {
   if (/^(\+)?([0-9]+|Infinity)$/.test(value))
@@ -177,13 +176,12 @@ function tt_sms_out(sms_out_data, user_checker) {
   var user_sim_check = 'user_id = "' + sms_out_data.user_id + '" AND imsi = "' + sms_out_data.sim_imsi + '"';
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
 
-
   //SMS|SMSOUT|SEQ|과금금액|imei|tmsi|kc|cksn|msisdn|user_sim_checker[0].send_sms_cnt|simbank_id|sim_serial_no|error|
   var check_outbound = filterInt(sms_out_data.outbound)
   console.log("check_outbound : " + check_outbound)
 
   if (check_outbound != NaN) { // is number
-    var outbound_n = is_local_check(sms_out_data.outbound)
+    var outbound_n = is_local_check(sms_out_data.outbound, sms_out_data.sim_imsi)
     console.log("outbound_n : " + outbound_n)
     if (outbound_n != 0) { // is local
 
@@ -191,7 +189,6 @@ function tt_sms_out(sms_out_data, user_checker) {
 
 
       if (user_sim_checker.length > 0) { // 유저가 존재하고 심이 있을경우
-
 
         sim_data.credit = user_checker[0].credit;
         sim_data.fcm_push_key = user_checker[0].fcm_push_key;
@@ -209,7 +206,6 @@ function tt_sms_out(sms_out_data, user_checker) {
         sim_data.mcc = user_sim_checker[0].mcc;
         sim_data.mnc = user_sim_checker[0].mnc;
 
-
         var global_carrier_check = 'mcc = "' + sim_data.mcc + '"AND mnc = "' + sim_data.mnc + '"';
         let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
         console.log("mcc mnc : " + sim_data.mcc + sim_data.mnc)
@@ -225,9 +221,7 @@ function tt_sms_out(sms_out_data, user_checker) {
         console.log("smsout_price : " + sim_data.smsout_price)
         //SMS|SMSOUT|SEQ|과금금액|imei|tmsi|kc|cksn|msisdn|user_sim_checker[0].send_sms_cnt|simbank_id|sim_serial_no|error|
         sms_out_msg(sms_out_data, sim_data)
-
       }
-
       else {
         sms_out_data.error = 100
 
@@ -259,11 +253,7 @@ function sms_out(dictdata) {
   sms_out_data.user_id = dictdata['data5'];
   sms_out_data.outbound = dictdata['data6'];
   sms_out_data.port = dictdata['port'];
-  ////////////////////////////////////////////////////
   sms_out_data.error = 0
-
-
-
 
   sim_data.credit = 0
   sim_data.fcm_push_key = 0
@@ -307,15 +297,11 @@ function sms_out(dictdata) {
       console.log("check_outbound : " + check_outbound)
 
       if (check_outbound != NaN) { // is number
-        var outbound_n = is_local_check(sms_out_data.outbound)
+        var outbound_n = is_local_check(sms_out_data.outbound, sms_out_data.sim_imsi)
         console.log("outbound_n : " + outbound_n)
         if (outbound_n != 0) { // is local
 
-          //필요데이토 초기화
-
-
           if (user_sim_checker.length > 0) { // 유저가 존재하고 심이 있을경우
-
 
             sim_data.credit = user_checker[0].credit;
             sim_data.fcm_push_key = user_checker[0].fcm_push_key;
@@ -332,7 +318,6 @@ function sms_out(dictdata) {
             sim_data.lac = user_sim_checker[0].lac;
             sim_data.mcc = user_sim_checker[0].mcc;
             sim_data.mnc = user_sim_checker[0].mnc;
-
 
             var global_carrier_check = 'mcc = "' + sim_data.mcc + '"AND mnc = "' + sim_data.mnc + '"';
             let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
@@ -365,17 +350,24 @@ function sms_out(dictdata) {
           }
         }
         else { // 로컬 번호가 아닌경우 is sip
-          console.log("[SMSOUT] is not local number")
+          write_log("[SMSOUT] is not local number")
+          sms_out_data.error = 104
+          sms_out_msg(sms_out_data, sim_data)
+
         }
       }
       else {
         //ERR is outbound not found
-        console.log("[SMSOUT] outbound is not number ");
+        write_log("[SMSOUT] outbound is not number ");
+        sms_out_data.error = 105
+        sms_out_msg(sms_out_data, sim_data)
       }
     }
   }
   else {
     write_log("sms_out : is not user ")
+    sms_out_data.error = 106
+    sms_out_msg(sms_out_data, sim_data)
   }
 
 }
@@ -414,16 +406,11 @@ function sms_in(dictdata) {
 
   var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
 
-
   var pdu_data = pdu.parse(sms_in_data.sms_pdu);
-
-
-
   sms_in_data.body = pdu_data._ud._data;
   sms_in_data.outbound = pdu_data._sca._encoded; //상대 방전화번호
   sms_in_data.callerID = pdu_data._address._phone; //발신자 전화번호
   sms_in_data.date = pdu_data._scts._time; //수신 전화시간
-
 
   sms_in_data.TYPE = 0;
   sms_in_data.type = 0;
@@ -456,15 +443,8 @@ function sms_in(dictdata) {
   var user_check = 'user_id = "' + user_sim_checker[0].user_id + '" AND user_sim_imsi = "' + user_sim_checker[0].imsi + '"';
   let user_checker = realm.objects('USER').filtered(user_check);
 
-  console.log("111")
-
 
   if (user_sim_checker.length > 0 && user_checker.length > 0) {
-    console.log("22222")
-
-
-
-    sim_data.user_id = user_sim_checker[0].user_id;
 
     sim_data.user_id = user_checker[0].user_id;
     sim_data.user_serial = user_checker[0].user_serial;
@@ -492,13 +472,9 @@ function sms_in(dictdata) {
 
 
     if (sim_data.join_type == 1) {
-      console.log("33333")
-
       sms_in_msg(sms_in_data, sim_data)
     }
     else {
-      console.log("44444")
-
       var phone_number = sms_in_data.outbound
 
       if (phone_number[0] != 0) {
@@ -512,14 +488,9 @@ function sms_in(dictdata) {
     }
   }
   else {
-    console.log("55555")
-
     sms_in_data.description = sms_in_data.outbound + " / " + 0;
     sms_in_msg(sms_in_data, sim_data)
-
   }
-
-
 }
 
 function sms_result_msg(sms_result_data, sim_data) {
@@ -527,14 +498,12 @@ function sms_result_msg(sms_result_data, sim_data) {
   var sms_reslut_msg = "DB|D08|SMSRESULT|" + sim_data.user_pid + "|" + sim_data.user_serial + "|" + sim_data.user_id + "|" + sim_data.credit + "|" +
     sim_data.imsi + "|" + sms_result_data.outbound + "|" + sim_data.simbank_name + "|" + sim_data.sim_serial_no + "|" + sms_result_data.description + "|" + sms_result_data.price + "|" +
     sms_result_data.credit_flag + "|" + sim_data.area_name + "|" + sms_result_data.content + "|" + sms_result_data.type + "|" + sms_result_data.TYPE + "|" + now + "|" + sms_result_data.error_code + "|" + sms_result_data.sms_result + "|"
-
   console.log(sms_reslut_msg);
   addon_child.send_data(sms_reslut_msg);
 }
 
 function tt_sms_result(sms_result_data, user_checker) {
   var sim_data = new Object();
-
   var user_sim_check = 'imsi = "' + sms_result_data.sim_imsi + '" AND user_id ="' + sms_result_data.user_id + '"';
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
   sim_data.user_id = user_checker[0].user_id;
@@ -550,6 +519,7 @@ function tt_sms_result(sms_result_data, user_checker) {
   sim_data.sim_serial_no = 0;
   sim_data.msisdn = 0;
   sim_data.area_name = 0;
+
   if (user_sim_checker.length > 0) {
     sim_data.imsi = user_sim_checker[0].imsi;
     sim_data.simbank_name = user_sim_checker[0].simbank_name;
@@ -558,10 +528,8 @@ function tt_sms_result(sms_result_data, user_checker) {
     sim_data.mcc = user_sim_checker[0].mcc;
     sim_data.mnc = user_sim_checker[0].mnc;
 
-
     var global_carrier_check = 'mcc = "' + sim_data.mcc + '"AND mnc = "' + sim_data.mnc + '"';
     let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-
     sim_data.area_name = global_carrier_checker[0].carrier;
     sms_result_data.description = sms_result_data.outbound + " / " + sim_data.msisdn;
     if (sms_result_data.sms_result == 'SUCCESS') {
@@ -573,15 +541,10 @@ function tt_sms_result(sms_result_data, user_checker) {
       sms_result_msg(sms_result_data, sim_data)
     }
     else if (sms_result_data.sms_result == 'FAIL') { //문자 실패인 경우
-
-
       console.log("is FAIL")
       sms_result_msg(sms_result_data, sim_data)
     }
   }
-
-
-
 }
 
 function sms_result(dictdata) {
@@ -589,7 +552,6 @@ function sms_result(dictdata) {
   //OUT - ""
   var sms_result_data = new Object();
   var sim_data = new Object();
-
   var command_line = dictdata;
 
   sms_result_data.command = command_line['command'];
@@ -603,25 +565,17 @@ function sms_result(dictdata) {
   sms_result_data.sms_result = command_line['data8'];
   sms_result_data.error_code = command_line['data9'];
 
-  //////////////////////////////////////////////////////
-
   var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
-
-
   sms_result_data.type = 0;
   sms_result_data.TYPE = 1;
   sms_result_data.content = "SMS"
   sms_result_data.credit_flag = 103
   sms_result_data.description = "0"
 
-
-
-
   var user_check = 'user_id = "' + sms_result_data.user_id + '"';
   let user_checker = realm.objects('USER').filtered(user_check);
   var user_sim_check = 'imsi = "' + sms_result_data.sim_imsi + '" AND expire_match_date > ' + now + ' AND user_id ="' + sms_result_data.user_id + '"';
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
-
 
   sim_data.user_id = 0
   sim_data.user_serial = 0
@@ -636,7 +590,6 @@ function sms_result(dictdata) {
   sim_data.msisdn = 0
   sim_data.area_name = 0
 
-
   if (user_checker.length > 0) {
     sim_data.user_id = user_checker[0].user_id;
     sim_data.user_serial = user_checker[0].user_serial;
@@ -650,16 +603,12 @@ function sms_result(dictdata) {
       tt_sms_result(sms_result_data, user_checker)
     }
     else if (sim_data.join_type == 0 && user_sim_checker.length > 0) {
-
-
       sim_data.imsi = user_sim_checker[0].imsi;
       sim_data.simbank_name = user_sim_checker[0].simbank_name;
       sim_data.sim_serial_no = user_sim_checker[0].sim_serial_no;
       sim_data.msisdn = user_sim_checker[0].msisdn;
       sim_data.mcc = user_sim_checker[0].mcc;
       sim_data.mnc = user_sim_checker[0].mnc;
-
-
       var global_carrier_check = 'mcc = "' + sim_data.mcc + '"AND mnc = "' + sim_data.mnc + '"';
       let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
 
@@ -674,8 +623,6 @@ function sms_result(dictdata) {
         sms_result_msg(sms_result_data, sim_data)
       }
       else if (sms_result_data.sms_result == 'FAIL') { //문자 실패인 경우
-
-
         console.log("is FAIL")
         sms_result_msg(sms_result_data, sim_data)
       }

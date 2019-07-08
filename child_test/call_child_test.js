@@ -18,15 +18,6 @@ var options = {
   encoding: 'utf8',
   flag: 'a'
 };
-// realm.addListener("change", (realm, changes, schema) => {
-//   write_log("realm.change : " + changes)
-//
-//   if (realm.isInTransaction) {
-//     write_log("realm.change isInTransaction")
-//     realm.commitTransaction();
-//   }
-// });
-
 function write_log(data) {
   var dt = new Date();
 
@@ -42,29 +33,30 @@ process.on('message', (value) => {
 function command_classifier(data) {
   switch (data['data1']) {
     case 'CALLOUT':
-      //call function
+      //CALLOUT function
       console.log("CALLOUT ");
       call_out(data);
       break;
-    case 'CALLIN': //회원가입
-      //call function
+    case 'CALLIN':
+      //CALLIN function
       console.log("CALLIN");
       call_in(data);
       break;
-    case 'CALLDROP': //로그인
-      //call function
+    case 'CALLDROP':
+      //CALLDROP function
       console.log("CALLDROP");
       call_drop(data);
       break;
 
     default:
+      //not find command
       console.log("[CALL] not find sub command");
   }
 }
 
-function area_no_check(msisdn) { // return area_no
+function area_no_check(msisdn) { // return area_checker
   var number = msisdn + "";
-  for (var i = 8; i > 0; i--) {
+  for (var i = 8; i > 0; i--) { //전화번호최대 9자리 부터 비교하여 해당하는 국가별 rate에 존재하는지 찾는 함수
     try {
       area_no = parseInt(number.slice(0, i))
     }
@@ -76,10 +68,10 @@ function area_no_check(msisdn) { // return area_no
       var area_check = 'area_no = ' + area_no + '';
       var area_checker = realm.objects('RATE').filtered(area_check);
       if (area_checker.length > 0) { //국가 넘버 찾을경우
-        return area_checker;
+        return area_checker; // 국가 넘버에 해당하는 realm 객체 반환
         break;
       }
-      else { //국가 넘버 못찾을경우
+      else { //국가 넘버 못찾을경우 0 리턴
         write_log("no check area_no : " + area_no);
         console.log("no check area_no : " + area_no);
       }
@@ -93,15 +85,19 @@ function area_no_check(msisdn) { // return area_no
   }
 }
 
+//전화번호가 국내 전화인지 국외 전화인지를 구분하는 함수
 function is_local_check(outbound, imsi) {
-  //1 is local
-  //2 is sip
-  // 0 is not number
+
+  // return phone_number is local
+  // return 0 is not local number sip
+  // return 1 is not phone_number
 
   var number = '' + outbound;
   var outbound_1 = number.slice(0, 1)
   console.log("is local : " + number);
   write_log("is local : " + number)
+
+  //앞자리가 0이면 기본적으로 로컬에 전화를 거는것이므로 전화번호 반환
   if (outbound_1 == '0') {
     // is local
     console.log(number)
@@ -115,6 +111,9 @@ function is_local_check(outbound, imsi) {
     var global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
 
     if (global_carrier_checker.length > 0) {
+      //첫째 자리가 0이 아닐경우
+      //고객이 가지고 있는 sim의 imsi 와 global_carrier에 가지고 있는 통신사 코드를 비교하여 국가 코드를 받아
+      //국가코드와 같으면 로컬로 판단한다.
 
       var country_code = '' + global_carrier_checker[0].country_code
       var code_length = country_code.length
@@ -127,49 +126,19 @@ function is_local_check(outbound, imsi) {
 
         return number
       }
-      else {
+      else { // is sip
         console.log("is not local " + number)
 
         return 0
       }
     }
-    else {
-      return 0
-
+    else { // is not phone_number
+      return 1
     }
   }
 }
-// function is_local_check(outbound) {
-//   //1 is local
-//   //2 is sip
-//   // 0 is not number
-//
-//   var number = '' + outbound;
-//   var outbound_1 = number.slice(0, 1)
-//   console.log("is local : " + number);
-//   write_log("is local : " + number)
-//   if (outbound_1 == '0') {
-//     // is local
-//     var country_number = global_value.country_code;
-//
-//     return country_number + number.slice(1, -1)
-//
-//   }
-//   else {
-//     country = number.slice(0, 2)
-//     console.log(country)
-//
-//     if (global_value.country_code == parseInt(country)) {
-//       // is local
-//       return outbound;
-//     }
-//     else {
-//       // is sip
-//       return 0
-//     }
-//   }
-// }
 
+//받은 value 값이 숫자인지 문자인지 판별
 function filterInt(value) {
   // ^(\+)?([0-9]*)$
   if (/^(\+)?([0-9]+|Infinity)$/.test(value))
@@ -178,6 +147,7 @@ function filterInt(value) {
 }
 
 
+//sms_cnt 값이 127일경우 초기화 아닐경우 1씩 증가 함수
 function sms_cnt_check(send_sms_cnt, user_sim_checker) {
 
   if (send_sms_cnt == 127) {
@@ -193,6 +163,7 @@ function sms_cnt_check(send_sms_cnt, user_sim_checker) {
     })
   }
 }
+
 
 function call_out_send_msg(available_time_s, call_out_data, sim_data) {
 
@@ -220,7 +191,7 @@ function call_out_send_msg(available_time_s, call_out_data, sim_data) {
     console.log(msg);
   }
 }
-
+//user is found, sim is not found
 function call_out_send_msg_simx(available_time_s, call_out_data, sim_data) {
   if (available_time_s != 0) { // 1분동안 통화를 가능할 크래딧일 경우
     //CALL|CALLOUT|SEQ|tcp_id|id|unit|value|droptime|imei|tmsi|kc|cksn|msisdn|reference_number|simbank_id|sim_serial_no|simbank_name|isSip|join_app_type|error|area_name|과금방식|MP_IP|MP_PORT|
@@ -235,6 +206,7 @@ function call_out_send_msg_simx(available_time_s, call_out_data, sim_data) {
     });
   }
   else {
+    //사용가능한 크래딧이 없는 경우
 
     var msg = "CALL|CALLOUT|" + call_out_data.seq + "|" + call_out_data.tcp_id + "|" + call_out_data.user_id + "|" + call_out_data.callout_unit + "|" + call_out_data.callout_value + "|" + available_time_s + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + call_out_data.isSip + "|" + 0 + "|101|" + call_out_data.area_name + "|0|" + sim_data.mp_ip + "|" + sim_data.mp_port + "|"
     write_log("call_out  크래딧 부족 : " + msg)
@@ -248,6 +220,7 @@ function call_out_send_msg_simx(available_time_s, call_out_data, sim_data) {
 }
 
 function call_out_send_msg_allx(available_time_s, call_out_data, sim_data) {
+  //sim, user is not found
   var msg = "CALL|CALLOUT|" + call_out_data.seq + "|" + call_out_data.tcp_id + "|0|" + call_out_data.callout_unit + "|" + call_out_data.callout_value + "|0|0|0|0|0|0|" + 0 + "|0|0|0|" + call_out_data.isSip + "|0|100|" + call_out_data.area_name + "|0|" + sim_data.mp_ip + "|" + sim_data.mp_port + "|"
   console.log(msg);
   write_log("call_out is sip: " + msg)
@@ -257,6 +230,8 @@ function call_out_send_msg_allx(available_time_s, call_out_data, sim_data) {
   });
 }
 
+
+// ttgo call_out function
 function tt_call_out(call_out_data, user_checker) {
   var sim_data = new Object();
   var user_sim_check = 'user_id = "' + call_out_data.user_id + '" AND imsi = "' + call_out_data.sim_imsi + '"'
@@ -295,13 +270,13 @@ function tt_call_out(call_out_data, user_checker) {
         call_out_data.callout_value = 0
         call_out_data.area_name = global_carrier_checker[0].carrier
 
-
-        // var available_time_s = global_value.call_drop_time(sim_data.user_credit, call_out_data.callout_unit, call_out_data.callout_value);
+        //ttgo의 경우 유저심으로 하기 때문에 과금을 하지 않는다.
+        //하지만 프로토콜상 사용가능시간이 필요하므로 3600초 고정으로 정해짐
         var available_time_s = 3600
         call_out_send_msg(available_time_s, call_out_data, sim_data)
       }
     }
-    else { // 로컬 번호가 아닌경우 is sip or user, sim 정보 없을 경우
+    else { // 로컬 번호가 아닌경우 is sip or user or sim 정보 없을 경우
       call_out_data.isSip = 1;
 
       var rate_checker = area_no_check(call_out_data.outbound)
@@ -327,6 +302,7 @@ function tt_call_out(call_out_data, user_checker) {
         sms_cnt_check(sim_data.send_sms_cnt, user_sim_checker)
         var carrier_id = call_out_data.sim_imsi.slice(0, 5)
 
+        // Sip일 경우 과금을 하는 정책이므로 사용가능한 시간을 확인한다.
         var available_time_s = global_value.call_drop_time(sim_data.user_credit, call_out_data.callout_unit, call_out_data.callout_value);
 
         var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
@@ -344,15 +320,12 @@ function tt_call_out(call_out_data, user_checker) {
         var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
         let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
 
-
-
         sim_data.mp_ip = global_carrier_checker[0].mp_ip
         sim_data.mp_port = global_carrier_checker[0].mp_port
-
-
         sim_data.app_type = user_checker[0].app_type
         sim_data.user_credit = user_checker[0].credit
 
+        // Sip일 경우 과금을 하는 정책이므로 사용가능한 시간을 확인한다.
         var available_time_s = global_value.call_drop_time(sim_data.user_credit, call_out_data.call_unit, call_out_data.call_value);
         call_out_send_msg_simx(available_time_s, call_out_data, sim_data)
       }
@@ -365,6 +338,7 @@ function tt_call_out(call_out_data, user_checker) {
 
   }
 }
+
 
 function call_out(dictdata) {
   //IN - CALL|CALLOUT|SEQ|sim_imsi|tcp_id|id|outbound|
@@ -388,7 +362,6 @@ function call_out(dictdata) {
   sim_data.mp_port = 0
   call_out_data.isSip = 0
 
-
   var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
 
   // 유저 체크
@@ -405,10 +378,10 @@ function call_out(dictdata) {
     if (user_checker.length > 0) {
       sim_data.sim_type = user_checker[0].join_type
 
-      if (sim_data.sim_type == 1) {
+      if (sim_data.sim_type == 1) { // ttgo 일경우 tt_call_out으로 분리
         tt_call_out(call_out_data, user_checker)
       }
-      else {
+      else {//everytt 일경우
 
 
         var check_outbound = filterInt(call_out_data.outbound)
@@ -514,6 +487,8 @@ function call_out(dictdata) {
   }
 }
 
+
+//전화수신시 main 서버에 보낼 메시지
 function call_in_msg(call_in_data, sim_data) {
 
   var msg = call_in_data.command + "|" + call_in_data.sub_command + "|" + call_in_data.seq + "|" + sim_data.user_serial + "|" + sim_data.user_id + "|" + sim_data.callin_unit + "|" + sim_data.callin_value + "|" + call_in_data.available_time_s + "|" + call_in_data.error + "|" + sim_data.fcm_push_key + "|" + sim_data.voip_push_key + "|" + 0 + "|" + sim_data.app_type + "|";
@@ -527,6 +502,7 @@ function call_in_msg(call_in_data, sim_data) {
 
 }
 
+//전화 수신처리
 function call_in(dictdata) {
   //IN - CALL|CALLIN|SEQ|sim_imsi|
   //OUT - CALL|CALLIN|SEQ|tcp_id|id|unit|value|droptime|push_key|voip_key|join_app_type|os_type|os_type 0안드로이드/ 1-ios
@@ -568,9 +544,7 @@ function call_in(dictdata) {
   var user_check = 'user_id = "' + sim_data.user_id + '" AND user_sim_imsi = "' + call_in_data.sim_imsi + '"';
   var user_checker = realm.objects('USER').filtered(user_check);
 
-  console.log("111111111")
   if (user_sim_checker.length > 0 && user_checker.length > 0) {
-    console.log("22222222")
 
     sim_data.credit = user_checker[0].credit;
     sim_data.user_serial = user_checker[0].user_serial;
@@ -591,12 +565,10 @@ function call_in(dictdata) {
     sim_data.callin_value = global_carrier_checker[0].callin_value.toFixed(3);
 
     if (user_sim_checker[0].sim_type == 0) {
-      console.log("333333")
 
       call_in_data.available_time_s = global_value.call_drop_time(sim_data.credit, sim_data.callin_unit, sim_data.callin_value);
     }
     else if (user_sim_checker[0].sim_type == 1) {
-      console.log("444444")
 
       call_in_data.available_time_s = 3600
     }
@@ -608,12 +580,10 @@ function call_in(dictdata) {
     //   data: msg,
     //   port: call_in_data.port
     // });
-    console.log("555555")
 
     call_in_msg(call_in_data, sim_data)
   }
   else {
-    console.log("666666")
 
     // var msg = call_in_data.command + "|" + call_in_data.sub_command + "|" + call_in_data.seq + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + error + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|";
     // console.log(msg)
@@ -628,15 +598,19 @@ function call_in(dictdata) {
   }
 }
 
+//전화 종류후 call_drop을 처리하기위해 보내는  msg function
 function call_drop_msg(call_drop_data, sim_data) {
   var call_drop_msg = "DB|D07|" + sim_data.user_pid + "|" + sim_data.user_serial + "|" + sim_data.user_id + "|" + sim_data.credit + "|" + sim_data.imsi + "|" + call_drop_data.outbound + "|" + sim_data.simbank_name + "|" + sim_data.sim_serial_no + "|" + call_drop_data.description + "|" +
     call_drop_data.deducted_credit + "|" + call_drop_data.credit_flag + "|" + call_drop_data.area_name + "|" + call_drop_data.content + "|" + call_drop_data.type + "|" + call_drop_data.TYPE + "|" + call_drop_data.s_date + "|" + call_drop_data.c_date + "|" + call_drop_data.e_date + "|" + call_drop_data.con_id + "|" + call_drop_data.call_result + "|"
   console.log(call_drop_msg);
-  write_log("call_drop SUCCESS : " + call_drop_msg)
+  write_log("call_drop " + call_drop_data.call_result + " : " + call_drop_msg)
 
   addon_child.send_data(call_drop_msg);
 }
 
+//ttgo의 call_drop을 처리하기 위해 만든 function
+//call_drop_data : call_drop_data 입력받은 데이터
+//user_checker : 해당 유저 오브젝트
 function tt_call_drop(call_drop_data, user_checker) {
   var sim_data = new Object();
 
@@ -649,7 +623,6 @@ function tt_call_drop(call_drop_data, user_checker) {
   call_drop_data.call_time = 0
   call_drop_data.deducted_credit = 0
   call_drop_data.credit_flag = 0;
-  call_drop_data.call_result = "0";
 
   sim_data.credit = 0
   sim_data.user_pid = 0
@@ -696,14 +669,13 @@ function tt_call_drop(call_drop_data, user_checker) {
       realm.write(() => {
         user_checker[0].credit = sim_data.credit; //크래딧 차감
       });
-
       call_drop_msg(call_drop_data, sim_data)
 
     }
     else { //전화 연결이 안된경우
       console.log("is not connected")
       var credit_flag = 104;
-      var call_result = "ERR-CON";
+      call_drop_data.call_result = "ERR-CON";
       var deducted_credit = 0
       call_drop_msg(call_drop_data, sim_data)
     }
@@ -737,7 +709,7 @@ function tt_call_drop(call_drop_data, user_checker) {
       console.log("tt_call_drop")
       console.log("[CALL_DROP] is not user")
 
-      call_drop_data.redit_flag = 104;
+      call_drop_data.credit_flag = 104;
       call_drop_data.call_result = "ERROR-USER";
       call_drop_msg(call_drop_data, sim_data)
 
@@ -745,6 +717,7 @@ function tt_call_drop(call_drop_data, user_checker) {
   }
 }
 
+//전화 CALL_DROP시 처리해주는 function
 function call_drop(dictdata) {
   //IN - CALL|CALLDROP|SEQ|TYPE|s_date|c_date|e_date|unit|value|area_name|과금방식|join_app_type|con_id|
   //TYPE-CALLOUT/CALLIN, s_date-전화시작 시간, c_date-연결한시간, e_date-종료시간
@@ -771,11 +744,6 @@ function call_drop(dictdata) {
 
 
 
-
-
-  // call_drop_data.content = '0'
-  // call_drop_data.type = 0;
-  // call_drop_data.description = "0"
   call_drop_data.call_time = 0
   call_drop_data.call_time = 0
   call_drop_data.deducted_credit = 0
@@ -784,8 +752,6 @@ function call_drop(dictdata) {
   call_drop_data.description = "0";
   call_drop_data.call_time = 0
   call_drop_data.deducted_credit = 0
-  call_drop_data.credit_flag = 0;
-  call_drop_data.call_result = "0";
 
   sim_data.credit = 0
   sim_data.user_pid = 0
@@ -810,8 +776,9 @@ function call_drop(dictdata) {
 
   if (user_checker.length > 0) {
     sim_data.join_type = user_checker[0].join_type
-    if (sim_data.join_type == 1) {
+    if (sim_data.join_type == 1) { //ttgo 일경우 tt_call_drop 으로 throw
       console.log("tt_call_drop")
+      write_log("tt_call_drop")
       tt_call_drop(call_drop_data, user_checker)
     }
     else {
@@ -830,7 +797,7 @@ function call_drop(dictdata) {
         sim_data.sim_serial_no = user_sim_checker[0].sim_serial_no
 
 
-        if (call_drop_data.c_date != 0 ) { //전화 연결이 된경우
+        if (call_drop_data.c_date != 0) { //전화 연결이 된경우
 
           call_drop_data.call_time = 0
           call_drop_data.call_time = call_drop_data.e_date - call_drop_data.c_date;
@@ -853,19 +820,18 @@ function call_drop(dictdata) {
 
           console.log("is not connected")
           var credit_flag = 104;
-          var call_result = "ERR-CON";
+          call_drop_data.call_result = "ERR-CON";
           var deducted_credit = 0
           call_drop_msg(call_drop_data, sim_data)
 
         }
-
       }
       else { //유저와 심이 없을 경우
         console.log("is not user or sim")
 
-        if (user_sim_checker.length > 0 && call_drop_data.c_date != 0) { // 유저가 있을경우
+        if (user_sim_checker.length > 0 && call_drop_data.c_date != 0) { //유저가 없지만 심이 있을경우
 
-          call_drop_data.call_time = e_date - c_date;
+          call_drop_data.call_time = e_date - c_date; //실제 사용한 전화시간
           call_drop_data.deducted_credit = global_value.deducted_credit(call_drop_data.call_time, call_drop_data.unit, call_drop_data.value);
           call_drop_data.credit_flag = 104;
           call_drop_data.call_result = "SUCCESS";
@@ -886,11 +852,10 @@ function call_drop(dictdata) {
         }
         else {
           console.log("call_drop")
-
           console.log("[CALL_DROP] is not user")
 
-          call_drop_data.redit_flag = 104;
-          call_drop_data.call_result = "ERROR-USER";
+          call_drop_data.credit_flag = 104;
+          call_drop_data.call_result = "ERROR-USER"; //유저가 맞지 않을 경우
 
           call_drop_msg(call_drop_data, sim_data)
 

@@ -41,6 +41,10 @@ function write_log(data) {
 }
 process.on('message', (value) => {
   console.log("policy is on");
+  var temp = JSON.stringify(value.data);
+
+  write_log("policy recive data"+temp);
+
   command_classifier(value.data);
 });
 
@@ -50,6 +54,7 @@ function command_classifier(data) {
     case 'TS00': //회원가입
       //call function
       console.log("회원가입");
+      write_log("회원가입");
       register(data);
       break;
     case 'TS01': //로그인
@@ -161,6 +166,8 @@ function pad(n, width) {
 }
 
 function register(dictdata) {
+  write_log("policy_child register on " )
+
   var command_line = dictdata;
   var command = command_line['command'];
   var sub_command = command_line['data1'];
@@ -174,9 +181,11 @@ function register(dictdata) {
   var port = dictdata['port']
   var encpwd = psw_encryption(user_pw);
   if (user_pw == "FACEBOOK" || user_pw.length != 0) { //회원가입이 페이스북으로 진행할경우 비밀번호에 FASCEBOOK 입력
-    var user_length = realm.objects('USER').length;
+
+
+    var user_length = realm.objects('USER').sorted('user_pid',true)
     var user_checker = realm_id_checker.length;
-    var user_pid = 200000 + user_length;
+    var user_pid = user_length[0].user_pid + 1;
     var user_serial = "PH01" + pad(user_pid, 15);
 
     if (user_checker == 0) { // is not find user_id
@@ -497,47 +506,14 @@ function login(dicdata) {
         var msisdn = user_sim_checker[0].msisdn
         var expire_match_date = user_sim_checker[0].expire_match_date
 
+        write_log("policy_child login sim  o");
+        login_msg(login_data, sim_data);
 
-        console.log("policy_child login sim  o");
-        if (sim_data.join_type == 1) {
-          realm.write(() => {
-            user_checker[0].user_sim_imsi = login_data.imsi;
-            user_sim_checker[0].imsi = login_data.imsi;
-
-          });
-          sim_data.imsi = user_checker[0].imsi
-          login_msg(login_data, sim_data);
-        }
-        else {
-          login_msg(login_data, sim_data);
-        }
       }
       else { //심구매하지 않는 유저일경우
-        if (sim_data.join_type == 1) {
-          var mcc = login_data.imsi.slice(0, 3)
-          var mnc = login_data.imsi.slice(3, 5)
-          var imei = imeigc.randomIMEI_fullRandom();
 
-          realm.write(() => {
-            var SIM = realm.create('SIM', {
-              user_id: login_data.user_id,
-              imsi: login_data.imsi,
-              imei: imei,
-              mcc: mcc,
-              mnc: mnc,
-              sim_type: sim_data.join_type,
-            });
-            user_checker[0].user_sim_imsi = login_data.imsi;
-
-          });
-
-          sim_data.imsi = login_data.imsi;
-          login_msg(login_data, sim_data);
-        }
-        else {
-          login_msg(login_data, sim_data);
-        }
-        console.log("policy_child login sim  x");
+        login_msg(login_data, sim_data);
+        write_log("policy_child login sim  x");
 
       }
 

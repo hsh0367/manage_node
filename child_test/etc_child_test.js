@@ -10,27 +10,47 @@ var etc_que = new Queue('etc_que');
 var addon = require('bindings')('addon');
 var addon_child = require('bindings')('addon_child');
 addon_child.setConnect(5555, "127.0.0.1");
-var connection = mysql.createConnection({
+
+var config = {
+  connectTimeout : 10000,
   host: 'everytt-rds.cf5whdjkixxd.ap-southeast-1.rds.amazonaws.com',
   user: 'everytt',
   password: 'dpqmflTT1#',
   database: 'smartTT'
-});
-
+}
+var connection = mysql.createConnection(config);
 connection.connect(function(err) {
   if (err) throw err;
   console.log("Connected!");
+  write_log("MYSQL Connected!");
 });
-connection.on('error', function(err) {
-  if (error.code == 'PROTOCOL_CONNECTION_LOST') {
-    var connection = mysql.createConnection({
-      host: 'everytt-rds.cf5whdjkixxd.ap-southeast-1.rds.amazonaws.com',
-      user: 'everytt',
-      password: 'dpqmflTT1#',
-      database: 'smartTT'
-    });
-  }
-});
+handleDisconnect(connection);
+
+function handleDisconnect(client) {
+  client.on('error', function(error) {
+    if (!error.fatal) return;
+    if (error.code !== 'PROTOCOL_CONNECTION_LOST') throw err;
+    write_log('> Re-connecting lost MySQL connection: ' + error.stack);
+    client = mysql.createConnection(client.config);
+    handleDisconnect(client);
+    client.connect();
+  });
+};
+
+// connection.connect(function(err) {
+//   if (err) throw err;
+//   console.log("Connected!");
+//   write_log("MYSQL Connected!");
+//
+// });
+// connection.on('error', function(err) {
+//   if (error.code == 'PROTOCOL_CONNECTION_LOST') {
+//     connection.connect(function(err) {
+//       if (err) throw err;
+//       write_log("MYSQL REConnected!");
+//     });
+//   }
+// });
 
 
 var simlist = [];
