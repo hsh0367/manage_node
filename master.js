@@ -42,31 +42,32 @@ function command_classifier(data) {
   switch (data['command']) {
     case 'SMS':
       console.log("send sms_child : ", data);
-      write_log("send sms_child : ", data);
-
+      var temp = JSON.stringify(data);
+      write_log("send sms_child : " + temp);
       sms_child_test.send({
         data: data
       });
       break;
     case 'CALL':
       console.log("send call_child : ", data);
-      write_log("send call_child : ", data);
-
+      var temp = JSON.stringify(data);
+      write_log("send call_child : " + temp);
       call_child_test.send({
         data: data
       });
       break;
     case 'MP':
       console.log("send mp_child : ", data);
-      write_log("send mp_child : ", data);
-
+      var temp = JSON.stringify(data);
+      write_log("send mp_child : " + temp);
       mp_child_test.send({
         data: data
       });
       break;
     case 'POLICY':
       console.log("send policy_child : " + data['command']);
-      write_log("send policy_child : " + data);
+      var temp = JSON.stringify(data);
+      write_log("send policy_child : " + temp);
       console.log(policy_child_test.connected)
 
       policy_child_test.send({
@@ -75,24 +76,24 @@ function command_classifier(data) {
       break;
     case 'CND':
       console.log("send cnd_child : ", data);
-      write_log("send cnd_child : ", data);
-
+      var temp = JSON.stringify(data);
+      write_log("send cnd_child : " + temp);
       cnd_child_test.send({
         data: data
       });
       break;
     case 'ETC':
       console.log("send etc_child : ", data);
-      write_log("send etc_child : ", data);
-
+      var temp = JSON.stringify(data);
+      write_log("send etc_child : " + temp);
       etc_child_test.send({
         data: data
       });
       break;
     case 'LUR':
       console.log("send lur_child : ", data);
-      write_log("send lur_child : ", data);
-
+      var temp = JSON.stringify(data);
+      write_log("send lur_child : " + temp);
       lur_child_test.send({
         data: data
       });
@@ -110,11 +111,10 @@ addon.setCallback(2222, data_test);
 
 dataQueue.process(function(job, done) {
   // console.log("dataQueue")
-  var temp = job.data.data
-
-write_log(temp)
+  var temp = JSON.stringify( job.data.data);
+  write_log("dataQueue : " + job.data.data);
   parsing_child_test.send({
-    data: temp
+    data: job.data.data
   });
   done();
 });
