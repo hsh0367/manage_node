@@ -24,57 +24,42 @@ connection.connect(function(err) {
   console.log("Connected!");
   write_log("MYSQL Connected!");
 });
-handleDisconnect(connection);
+connection.on('error', function(error) {
+  if (!error.fatal) return;
+  if (error.code !== 'PROTOCOL_CONNECTION_LOST') throw err;
+  write_log('> Re-connecting lost MySQL connection: ' + error.stack);
+  connection = mysql.createConnection(config);
+  connection.connect();
+});
 
-function handleDisconnect(client) {
-  client.on('error', function(error) {
-    if (!error.fatal) return;
-    if (error.code !== 'PROTOCOL_CONNECTION_LOST') throw err;
-    write_log('> Re-connecting lost MySQL connection: ' + error.stack);
-    client = mysql.createConnection(client.config);
-    handleDisconnect(client);
-    client.connect();
-  });
-};
-
-// connection.connect(function(err) {
-//   if (err) throw err;
-//   console.log("Connected!");
-//   write_log("MYSQL Connected!");
+// handleDisconnect(connection);
 //
-// });
-// connection.on('error', function(err) {
-//   if (error.code == 'PROTOCOL_CONNECTION_LOST') {
-//     connection.connect(function(err) {
-//       if (err) throw err;
-//       write_log("MYSQL REConnected!");
-//     });
-//   }
-// });
+// function handleDisconnect(client) {
+//   client.on('error', function(error) {
+//     if (!error.fatal) return;
+//     if (error.code !== 'PROTOCOL_CONNECTION_LOST') throw err;
+//     write_log('> Re-connecting lost MySQL connection: ' + error.stack);
+//     client = mysql.createConnection(client.config);
+//     handleDisconnect(client);
+//     client.connect();
+//   });
+// };
 
 
 var simlist = [];
 let realm = new Realm({
+  path: '/home/ubuntu/manage_node/log/testRealm5.realm',
   deleteRealmIfMigrationNeeded: true,
   disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
-  schemaVersion: 35
 });
-
 require('date-utils');
 var fs = require('fs');
 var options = {
   encoding: 'utf8',
   flag: 'a'
 };
-// realm.addListener("change", (realm, changes, schema) => {
-//   write_log("realm.change : " + changes)
-//
-//   if (realm.isInTransaction) {
-//     write_log("realm.change isInTransaction")
-//     realm.commitTransaction();
-//   }
-// });
+
 
 function write_log(data) {
   var dt = new Date();
@@ -89,9 +74,14 @@ process.on('message', (value) => {
   ETC_classifier(value.data);
 });
 
+
+//etc_que mp서버에 처리하는 것만 담당하고 있다.
 etc_que.process(function(job, done) {
-  console.log("etc_que : " + job.data.imsi)
-  console.log("etc_que : " + job.data.flag)
+
+
+  write_log("etc_que : " + job.data.imsi)
+  write_log("etc_que : " + job.data.flag)
+
   var flag = job.data.flag;
   var imsi = job.data.imsi;
   var flag_point = 99;
@@ -107,7 +97,7 @@ etc_que.process(function(job, done) {
     var etc_msisdn_flag = user_sim_checker[0].etc_msisdn_flag
     var etc_charge_flag = user_sim_checker[0].etc_charge_flag
 
-    if (flag == "etc_blance_flag") {
+    if (flag == "etc_blance_flag") { //심 잔액 체크 일경우
 
       if (etc_blance_flag > 3) {
         //MYSQL에 표시해 주어야된다.
@@ -124,7 +114,7 @@ etc_que.process(function(job, done) {
           try {
             etc_blance_flag = etc_blance_flag + 1
             realm.write(() => {
-              user_sim_checker[0].etc_blance_flag = etc_blance_flag + 1
+              user_sim_checker[0].etc_blance_flag = etc_blance_flag
             });
             write_log("etc_que :  new try etc_msisdn  imsi : " + job.data.imsi)
             sim_balance_check(imsi);
@@ -140,7 +130,7 @@ etc_que.process(function(job, done) {
       }
 
     }
-    else if (flag == "etc_msisdn_flag") {
+    else if (flag == "etc_msisdn_flag") { //msisdn 체크
 
       if (etc_msisdn_flag > 3) {
         //MYSQL에 표시해 주어야된다.
@@ -192,7 +182,7 @@ etc_que.process(function(job, done) {
             realm.write(() => {
               user_sim_checker[0].etc_charge_flag = etc_charge_flag
             });
-            write_log("etc_que :  new try etc_charge  imsi : " + job.data.imsi)
+            write_log("etc_que : new try etc_charge  imsi : " + job.data.imsi)
             sim_charge(imsi);
           }
           catch (e) {
@@ -214,80 +204,60 @@ etc_que.process(function(job, done) {
   done();
 });
 
-var connection = mysql.createConnection({
-  host: 'everytt-rds.cf5whdjkixxd.ap-southeast-1.rds.amazonaws.com',
-  user: 'everytt',
-  password: 'dpqmflTT1#',
-  database: 'smartTT'
 
-});
-
-connection.connect(function(err) {
-  if (err) throw err;
-  console.log("Connected!");
-});
 
 function ETC_classifier(data) {
   switch (data['data1']) {
 
     case 'E00':
-      //call function
-      console.log("유저보기");
+      write_log("유저보기");
       view()
       break;
-    case 'E11': //realm mysql 데이터베이스 동기화
-      //call function
+    case 'E11': //realm mysql 데이터베이스 동기화 user, sim, rate, carrier
       DB_synchronization(data);
       break;
-    case 'QUERY': //realm mysql 데이터베이스 동기화
-      //call function
-      console.log("QUERY")
+    case 'QUERY': //QUERY MYSQL DB 쿼리 실행함슈
+      write_log("QUERY")
       query_processor(data);
       break;
-    case 'VIEW': //realm mysql 데이터베이스 동기화
-      //call function
-      console.log("table_view");
+    case 'VIEW': //realm user, sim, rate, carrier 데이터 확인
+      write_log("table_view");
       table_view(data);
       break;
-    case 'DEATH': //realm mysql 데이터베이스 동기화point_death
-      //call function
-      console.log("death");
+    case 'DEATH': //realm user, sim, rate, carrier 데이터 컬럼 전채 삭제
+      write_log("death");
       death(data);
       break;
-    case 'PDEATH': //realm mysql 데이터베이스 동기화point_death
-      //call function
-      console.log("PDEATH");
+    case 'PDEATH': //realm user, sim, rate, carrier 특정한 ID 값을 가진 객체만 삭제
+      write_log("PDEATH");
       point_death(data);
       break;
-    case 'CREDIT': //realm mysql 데이터베이스 동기화
-      //call function
+    case 'CREDIT': //realm 특정 유저 크래딧 추가
       credit_update(data);
       break;
-    case 'BALANCE': //realm mysql 데이터베이스 동기화
-      //call function
+    case 'BALANCE': //심 잔액체크
       sim_balance_check(data);
       break;
-    case 'MSISDN': //realm mysql 데이터베이스 동기화
-      //call function
+    case 'MSISDN': //심 전화번호 체크
       sim_msisdn_check(data);
       break;
-    case 'MYSQL': //realm mysql 데이터베이스 동기화
-      //call function
-      send_mysql(data);
-      break;
-    case 'Z': //realm mysql 데이터베이스 동기화
-      //call function
+    // case 'MYSQL': //realm mysql 데이터베이스 동기화
+    //   send_mysql(data);
+    //   break;
+    case 'ZERO': //심 IMSI 값을 통해 TMSI를 0으로 바꿔주는 함수
       tmsi_zero();
       break;
     default:
       console.log(data);
   }
 }
-
+//realm에서 MYSQL 데이터베이스 데이터를 받기 위한 함수
 function DB_synchronization(dictdata) {
   var command_line = dictdata;
   var chosechema = command_line['data2'];
   if (chosechema == 'SIM') {
+    //현재 테스트를 위해 3개 아이디만 받고 있음
+
     var sql = "SELECT * FROM tb_sim_list WHERE PID = 2433 OR PID = 2434 OR PID = 2435;";
     //sql SELECT pid, id,  sim_serial_no, imsi, simbank_name FORM tb_sim_list 2433, 2434
 
@@ -438,6 +408,9 @@ function DB_synchronization(dictdata) {
                 LUR_time: result[i].lur_time,
                 lur_check_time: result[i].lur_check_time,
                 etc_check_time: result[i].etc_check_time,
+                mp_ip : result[i].mp_ip,
+                mp_port : result[i].mp_port
+
               });
 
             });
@@ -463,50 +436,50 @@ function DB_synchronization(dictdata) {
 }
 
 
-function send_mysql(dictdata) {
-  var chosechema = dictdata['data2']
-  if (chosechema == 'CARRIER') {
-    console.log("CARRIER");
-    var array = fs.readFileSync('./global_carrier.txt').toString().split("\n");
-    for (var i = 0; i < array.length - 1; i++) {
-      var temp = array[i]
-      var global_carrier = temp.replace(/(\s*)/g, "").split(","); // 스플릿 오류로 인해 쪼개지지 않고 있어서 오류 발생한다.
-      console.log("sss : " + array)
-
-      console.log(global_carrier)
-
-      try {
-        var carrier_id = global_carrier[3] + global_carrier[4];
-        var global_carrier_check = 'carrier_id = ' + parseInt(carrier_id) + '';
-        let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-
-
-        if (global_carrier_checker.length == 0) {
-          var carrier_id = global_carrier[3] + global_carrier[4]
-          var dbmsg = "DB|QUERY|INSERT INTO tb_global_carrier (carrier_id, country, country_code, carrier, mcc, mnc, smsc, callout_unit, callout_value, callin_unit, callin_value, smsout_price, smsin_price, charge_amount, balance_ussd, msisdn_ussd, sim_price, add_time, lur_time, lur_check_time, etc_check_time) VALUES ( " + carrier_id + ", \"" + global_carrier[0] + "\", \"" + global_carrier[1] + "\", \"" + global_carrier[2] + "\", \"" + global_carrier[3] + "\", \"" + global_carrier[4] + "\" , \"" + global_carrier[5] + "\", " + global_carrier[6] + "," + global_carrier[7] + ", " + global_carrier[8] + "," + global_carrier[9] + ", " + global_carrier[10] + ", " + global_carrier[11] + ", " + global_carrier[12] + ", \"" + global_carrier[13] + "\", \"" + global_carrier[14] + "\", " + global_carrier[15] + ", " + global_carrier[16] + "," + global_carrier[17] + "," + global_carrier[18] + "," + global_carrier[19] + ");|"
-          // var dbmsg = "DB|QUERY|INSERT INTO tb_global_carrier VALUES (" + carrier_id + ",\"" + global_carrier[0] + "\",\"" + global_carrier[1] + "\",\"" + global_carrier[2] + "\",\"" + global_carrier[3] + "\",\"" + global_carrier[4] + "\",\"" + global_carrier[5] + "\"," + global_carrier[6] + "," + global_carrier[7] + "," + global_carrier[8] + "," + global_carrier[9] + "," + global_carrier[10] + "," + global_carrier[11] + "," + global_carrier[12] + ",\"" + global_carrier[13] + "\",\"" + global_carrier[14] + "\"," + global_carrier[15] + "," + global_carrier[16] + "," + global_carrier[17] + "," + global_carrier[18] + "," + global_carrier[19] + ");|"
-
-          console.log("[ETC] DB_synchronization  GLOBALCARRIER : " + dbmsg);
-          write_log("[ETC] DB_synchronization  GLOBALCARRIER : " + dbmsg);
-          addon_child.send_data(dbmsg)
-
-        }
-        else {
-          console.log("이미있는 global_carrier row 입니다. : " + i + "번")
-        }
-      }
-      catch (e) {
-        console.log(e)
-      }
-    }
-  }
-}
-
-
-
-
+// function send_mysql(dictdata) {
+//   var chosechema = dictdata['data2']
+//   if (chosechema == 'CARRIER') {
+//     console.log("CARRIER");
+//     var array = fs.readFileSync('./global_carrier.txt').toString().split("\n");
+//     for (var i = 0; i < array.length - 1; i++) {
+//       var temp = array[i]
+//       var global_carrier = temp.replace(/(\s*)/g, "").split(","); // 스플릿 오류로 인해 쪼개지지 않고 있어서 오류 발생한다.
+//       console.log("sss : " + array)
+//
+//       console.log(global_carrier)
+//
+//       try {
+//         var carrier_id = global_carrier[3] + global_carrier[4];
+//         var global_carrier_check = 'carrier_id = ' + parseInt(carrier_id) + '';
+//         let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+//
+//
+//         if (global_carrier_checker.length == 0) {
+//           var carrier_id = global_carrier[3] + global_carrier[4]
+//           var dbmsg = "DB|QUERY|INSERT INTO tb_global_carrier (carrier_id, country, country_code, carrier, mcc, mnc, smsc, callout_unit, callout_value, callin_unit, callin_value, smsout_price, smsin_price, charge_amount, balance_ussd, msisdn_ussd, sim_price, add_time, lur_time, lur_check_time, etc_check_time) VALUES ( " + carrier_id + ", \"" + global_carrier[0] + "\", \"" + global_carrier[1] + "\", \"" + global_carrier[2] + "\", \"" + global_carrier[3] + "\", \"" + global_carrier[4] + "\" , \"" + global_carrier[5] + "\", " + global_carrier[6] + "," + global_carrier[7] + ", " + global_carrier[8] + "," + global_carrier[9] + ", " + global_carrier[10] + ", " + global_carrier[11] + ", " + global_carrier[12] + ", \"" + global_carrier[13] + "\", \"" + global_carrier[14] + "\", " + global_carrier[15] + ", " + global_carrier[16] + "," + global_carrier[17] + "," + global_carrier[18] + "," + global_carrier[19] + ");|"
+//           // var dbmsg = "DB|QUERY|INSERT INTO tb_global_carrier VALUES (" + carrier_id + ",\"" + global_carrier[0] + "\",\"" + global_carrier[1] + "\",\"" + global_carrier[2] + "\",\"" + global_carrier[3] + "\",\"" + global_carrier[4] + "\",\"" + global_carrier[5] + "\"," + global_carrier[6] + "," + global_carrier[7] + "," + global_carrier[8] + "," + global_carrier[9] + "," + global_carrier[10] + "," + global_carrier[11] + "," + global_carrier[12] + ",\"" + global_carrier[13] + "\",\"" + global_carrier[14] + "\"," + global_carrier[15] + "," + global_carrier[16] + "," + global_carrier[17] + "," + global_carrier[18] + "," + global_carrier[19] + ");|"
+//
+//           console.log("[ETC] DB_synchronization  GLOBALCARRIER : " + dbmsg);
+//           write_log("[ETC] DB_synchronization  GLOBALCARRIER : " + dbmsg);
+//           addon_child.send_data(dbmsg)
+//
+//         }
+//         else {
+//           console.log("이미있는 global_carrier row 입니다. : " + i + "번")
+//         }
+//       }
+//       catch (e) {
+//         console.log(e)
+//       }
+//     }
+//   }
+// }
+//
+//
 
 
+
+//사용자 크래딧 업데이트 하는 함수이다.
 function credit_update(dictdata) {
   var command_line = dictdata;
   var command = command_line['command'];
@@ -737,7 +710,7 @@ function table_view(dictdata) {
     let rate_checker = realm.objects('RATE')
     if (rate_checker.length > 0) {
       console.log(rate_checker.length)
-      console.log(rate_checker[i])
+      console.log(rate_checker)
 
     }
     else {
@@ -902,8 +875,9 @@ function death(dictdata) {
 }
 
 
-function tmsi_zero() {
-  var user_sim_check = 'imsi =  "' + 510108042298969 + '"';
+function tmsi_zero(imsi) {
+
+  var user_sim_check = 'imsi =  "' + imsi + '"';
   var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
   realm.write(() => {
 

@@ -21,11 +21,11 @@ function write_log(data) {
   fs.writeFile('./log/child/sms_child_log' + dd + ".txt", '[' + d + ']' + data + '\n', options, function(err) {});
 }
 
-var realm = new Realm({
+let realm = new Realm({
+  path: '/home/ubuntu/manage_node/log/testRealm5.realm',
   deleteRealmIfMigrationNeeded: true,
   disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
-  schemaVersion: 35
 });
 
 var pdu = require('node-pdu');

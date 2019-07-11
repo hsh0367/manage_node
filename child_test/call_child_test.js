@@ -5,13 +5,12 @@ const global_value = require('../global_value.js')
 var addon_child = require('bindings')('addon_child');
 addon_child.setConnect(5555, "127.0.0.1");
 
-var realm = new Realm({
+let realm = new Realm({
+  path: '/home/ubuntu/manage_node/log/testRealm5.realm',
   deleteRealmIfMigrationNeeded: true,
   disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
-  schemaVersion: 35
 });
-
 require('date-utils');
 var fs = require('fs');
 var options = {
@@ -374,6 +373,9 @@ function call_out(dictdata) {
     var user_checker = realm.objects('USER').filtered(user_check);
     var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
 
+    var carrier_id = call_out_data.sim_imsi.slice(0, 5)
+    var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
+    let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
 
     if (user_checker.length > 0) {
       sim_data.sim_type = user_checker[0].join_type
@@ -389,7 +391,7 @@ function call_out(dictdata) {
           var outbound_n = is_local_check(check_outbound, call_out_data.sim_imsi)
           if (outbound_n != 0) { // is local
 
-            if (user_checker.length > 0 && user_sim_checker.length > 0) { // 유저가 존재하고 심이 있을경우
+            if (global_carrier_checker.length > 0 && user_sim_checker.length > 0) { // 유저가 존재하고 심이 있을경우
               sim_data.imei = user_sim_checker[0].imei
               sim_data.tmsi = user_sim_checker[0].tmsi
               sim_data.kc = user_sim_checker[0].kc
@@ -405,9 +407,7 @@ function call_out(dictdata) {
               sim_data.app_type = user_checker[0].app_type
 
               sms_cnt_check(sim_data.send_sms_cnt, user_sim_checker)
-              var carrier_id = call_out_data.sim_imsi.slice(0, 5)
-              var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
-              let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+
               sim_data.mp_ip = global_carrier_checker[0].mp_ip
               sim_data.mp_port = global_carrier_checker[0].mp_port
 
@@ -428,7 +428,7 @@ function call_out(dictdata) {
             call_out_data.callout_unit = rate_checker[0].call_unit
             call_out_data.area_name = rate_checker[0].area_name
 
-            if (user_checker.length > 0 && user_sim_checker.length > 0) {
+            if (user_sim_checker.length > 0) {
 
               sim_data.imei = user_sim_checker[0].imei
               sim_data.tmsi = user_sim_checker[0].tmsi
@@ -448,7 +448,7 @@ function call_out(dictdata) {
               call_out_send_msg(available_time_s, call_out_data, sim_data)
 
             }
-            else if (user_checker.length > 0 && user_sim_checker.length == 0) {
+            else if (user_sim_checker.length == 0) {
               var carrier_id = call_out_data.sim_imsi.slice(0, 5)
               var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
               let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
@@ -475,10 +475,15 @@ function call_out(dictdata) {
       var carrier_id = call_out_data.sim_imsi.slice(0, 5)
       var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
       let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-      sim_data.mp_ip = global_carrier_checker[0].mp_ip
-      sim_data.mp_port = global_carrier_checker[0].mp_port
+      if(global_carrier_checker.length > 0){
 
-      call_out_send_msg_allx(available_time_s, call_out_data, sim_data)
+        sim_data.mp_port = global_carrier_checker[0].mp_port
+        sim_data.mp_ip = global_carrier_checker[0].mp_ip
+      }
+      else{
+
+        call_out_send_msg_allx(available_time_s, call_out_data, sim_data)
+      }
     }
   }
   catch (e) {
@@ -666,9 +671,9 @@ function tt_call_drop(call_drop_data, user_checker) {
 
       //크래딧  차감, 심과 사용자 매칭, tb_credit_history입력
       sim_data.credit = sim_data.credit - call_drop_data.deducted_credit;
-      realm.write(() => {
-        user_checker[0].credit = sim_data.credit; //크래딧 차감
-      });
+      // realm.write(() => {
+      //   user_checker[0].credit = sim_data.credit; //크래딧 차감
+      // });
       call_drop_msg(call_drop_data, sim_data)
 
     }

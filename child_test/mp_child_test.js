@@ -5,10 +5,10 @@ var addon_child = require('bindings')('addon_child');
 addon_child.setConnect(5555, "127.0.0.1");
 
 let realm = new Realm({
+  path: '/home/ubuntu/manage_node/log/testRealm5.realm',
   deleteRealmIfMigrationNeeded: true,
   disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
-  schemaVersion: 35
 });
 require('date-utils');
 var fs = require('fs');

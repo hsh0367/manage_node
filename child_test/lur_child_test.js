@@ -13,58 +13,11 @@ var check_que = new Queue('check_que');
 //   migratedRealm.close();
 // }
 let realm = new Realm({
+  path: '/home/ubuntu/manage_node/log/testRealm5.realm',
   deleteRealmIfMigrationNeeded: true,
   disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
-  schemaVersion: 35
 });
-
-// realm.addListener("change", (realm, changes, schema) => {
-//   write_log("realm.change : " + changes)
-//
-//   if (realm.isInTransaction) {
-//     write_log("realm.change isInTransaction")
-//     realm.commitTransaction();
-//   }
-// });
-
-//realm file size growth fix test
-
-// realm.addListener('change', () => {
-//   console.log("realm.change")
-//   realm.close();
-//   realm.commitTransaction();
-//
-// });
-// realm.addListener('insertions', () => {
-//   console.log("realm.insertions")
-//   realm.close();
-//   realm.commitTransaction();
-//
-// });
-// realm.addListener('newModifications', () => {
-//   console.log("realm.newModifications")
-//   realm.close();
-//   realm.commitTransaction();
-//
-// });
-// realm.addListener('oldModifications', () => {
-//   console.log("realm.oldModifications")
-//   realm.close();
-//   realm.commitTransaction();
-//
-// });
-// realm.addListener('deletions', () => {
-//   console.log("realm.deletions")
-//   realm.close();
-//   realm.commitTransaction();
-// });
-
-// if(realm.isInTransaction){
-//   console.log("test1111")
-//   realm.removeAllListeners();
-//   realm.close();
-// }
 
 require('date-utils');
 var fs = require('fs');
@@ -97,15 +50,7 @@ ssss.then(function(value) {
   console.log(value);
   write_log("check_que size : ", value)
 })
-// lur_que.empty().then(function() {
-//   console.log("lur_que : emptyyyyyyyyyyyyyyyyyyyy")
-//   write_log("lur_que : emptyyyyyyyyyyyyyyyyyyyy")
-//
-// })
-// check_que.empty().then(function() {
-//   console.log("check_que : emptyyyyyyyyyyyyyyyyyyyy")
-//   write_log("check_que : emptyyyyyyyyyyyyyyyyyyyy")
-// })
+
 lur_que.process(function(job, done) {
   var imsi = job.data.imsi
   var user_sim_check = 'imsi = "' + imsi + '"';
@@ -136,15 +81,15 @@ lur_que.process(function(job, done) {
     var mnc = user_sim_checker[0].mnc;
     var global_carrier_check = 'mcc = "' + mcc + '"AND mnc = "' + mnc + '"';
     let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-    var lur_check_time = global_carrier_checker[0].lur_check_time
-    var LUR_time = global_carrier_checker[0].LUR_time
-    var ip = global_carrier_checker[0].mp_ip
-    var port = global_carrier_checker[0].mp_port
 
     write_log("lur_que lur_check_time : " + lur_check_time + " imsi  : " + imsi + "")
 
     write_log("ip  : " + ip + " port  : " + port + "")
-    if (true) {
+    if (lur_fail_cnt < 10 && global_carrier_checker.length > 0) {
+      var lur_check_time = global_carrier_checker[0].lur_check_time
+      var LUR_time = global_carrier_checker[0].LUR_time
+      var ip = global_carrier_checker[0].mp_ip
+      var port = global_carrier_checker[0].mp_port
       // if (lur_date + LUR_time < now) {
       lur_fail_cnt = lur_fail_cnt + 1
       lur_check = 0
@@ -196,25 +141,21 @@ check_que.process(function(job, done) {
   // console.log("lur_que id : " + job.id + " imsi  : " + imsi)
   write_log("lur_que id : " + job.id + " imsi  : " + imsi)
 
-  if (user_sim_checker.length > 0) {
+  var carrier_id = imsi.slice(0, 5)
+  var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
+  let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+  if (user_sim_checker.length > 0 && global_carrier_checker.length > 0) {
     if (user_sim_checker[0].sim_type == 0) {
       var lur_date = user_sim_checker[0].lur_date;
       var lur_check = user_sim_checker[0].lur_check;
       var lur_fail_cnt = user_sim_checker[0].lur_fail_cnt;
 
 
-      var mcc = user_sim_checker[0].mcc;
-      var mnc = user_sim_checker[0].mnc;
-      var global_carrier_check = 'mcc = "' + mcc + '"AND mnc = "' + mnc + '"';
-      let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
       var LUR_time = global_carrier_checker[0].LUR_time
-
       var total = lur_date + LUR_time
       write_log("check_que imsi : " + imsi + "lur_date + LUR_time : " + total)
       write_log("check_que imsi : " + imsi + "LUR_time : " + LUR_time)
-
       write_log("check_que imsi : " + imsi + " lur_check : " + lur_check)
-
 
       if (total < now && lur_check == 0) {
         //lur이 시도 실패
@@ -224,6 +165,7 @@ check_que.process(function(job, done) {
 
         try {
           lur_check = 1
+
           realm.write(() => {
             user_sim_checker[0].lur_check = lur_check
           });
@@ -250,32 +192,22 @@ check_que.process(function(job, done) {
           user_sim_checker[0].lur_fail_cnt = lur_fail_cnt
         });
       }
+
+
     }
     else if (user_sim_checker[0].sim_type == 1) { //ttgo
       var lur_date = user_sim_checker[0].lur_date;
       var lur_check = user_sim_checker[0].lur_check;
       var lur_fail_cnt = user_sim_checker[0].lur_fail_cnt;
-
-
-      var mcc = user_sim_checker[0].mcc;
-      var mnc = user_sim_checker[0].mnc;
-      var global_carrier_check = 'mcc = "' + mcc + '"AND mnc = "' + mnc + '"';
-      let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
       var LUR_time = global_carrier_checker[0].LUR_time
-
       var total = lur_date + LUR_time
       write_log("ttgo check_que imsi : " + imsi + "lur_date + LUR_time : " + total)
       write_log("ttgo check_que imsi : " + imsi + "LUR_time : " + LUR_time)
-
       write_log("ttgo check_que imsi : " + imsi + " lur_check : " + lur_check)
-
-
       if (total < now && lur_check == 0) {
         //lur이 시도 실패
         console.log("ttgo now : " + now + "lur_date : " + lur_date + " lur_check : " + lur_check)
         console.log("cttgoheck_que : lur fail")
-
-
         try {
           lur_check = 1
           realm.write(() => {
@@ -316,50 +248,35 @@ check_que.process(function(job, done) {
 
 function command_classifier(data) {
   switch (data['data1']) {
-    case 'LUR': //테이블 체크
-      //call function
+    case 'LUR': //lur 결과값이 LUR일경우
       console.log("LUR ");
-      lur_update2(data);
+      lur_update(data);
       break;
-    case 'reTMSI': //회원가입
-      //call function
+    case 'reTMSI': //lur 결과값이 reTMSI일경우
       console.log("reTMSI");
-      lur_update2(data);
+      lur_update(data);
       break;
-    case 'QUE': //회원가입
-      //call function
-      console.log("check_que");
-      QUE(data);
-      break;
-    case 'TRY': //회원가입
-      //call function
+    case 'TRY': //특정심 LUR 시도
       console.log("lur_try");
       lur_try(data);
       break;
-    case 'LUR_SET': //회원가입
-      //call function
+    case 'LUR_SET': //관리하는 심 전체 LUR 시도
       console.log("set_lur");
       set_lur(data);
       break;
-    case 'SET_LURDATE': //회원가입
-      //call function
+    case 'SET_LURDATE': //특정심 LUR DATE Setting
       console.log("set_lur");
       reset_lurdate(data);
       break;
-    case 'TT': //회원가입
+    case 'RCQ': //remove check_que jobs
       //call function
-      console.log("TT");
-      test(data);
+      console.log("remove_check_que_jobs");
+      remove_check_que_jobs(data);
       break;
-    case 'TT2': //회원가입
-      //call function
-      console.log("TT2");
-      test2(data);
-      break;
-    case 'TT3': //회원가입
-      //call function
-      console.log("TT3");
-      test3(data);
+
+    case 'RCL': //remove lur_que job
+      console.log("remove_lur_que_jobs");
+      remove_lur_que_jobs(data);
       break;
     default:
       console.log("[LUR] not find sub command");
@@ -367,27 +284,10 @@ function command_classifier(data) {
 }
 process.on('message', (value) => {
   console.log("lur is on");
-  // command_classifier(value.data);
+  var temp = JSON.stringify(value.data)
+  write_log("lur recive msg : " + temp)
   command_classifier(value.data)
 });
-
-function QUE(dictdata) {
-
-  if (dictdata['data2'] == 'REMOVE') {
-    lur_que.remove();
-    check_que.remove();
-
-  }
-  else if (dictdata['data2'] == 'LOG') {
-    var lur_que_job_log = lur_que.getJobs();
-    var check_que_job_log = check_que.getJobs();
-
-    console.log("lur_que_job_log : " + lur_que_job_log);
-    console.log("check_que_job_log : " + check_que_job_log);
-
-  }
-}
-
 
 function tt_lur_update(user_sim_checker, dictdata) {
   var command_line = dictdata['command']
@@ -416,9 +316,9 @@ function tt_lur_update(user_sim_checker, dictdata) {
     var lur_check = user_sim_checker[0].lur_check;
     var mcc = user_sim_checker[0].mcc;
     var mnc = user_sim_checker[0].mnc;
-    var global_carrier_check = 'mcc = "' + mcc + '"AND mnc = "' + mnc + '"';
-    let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-    var LUR_time = global_carrier_checker[0].LUR_time
+    // var global_carrier_check = 'mcc = "' + mcc + '"AND mnc = "' + mnc + '"';
+    // let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+    // var LUR_time = global_carrier_checker[0].LUR_time
     write_log(tmsi + "|" + lac + "|" + arfcn + "|" + kc + "|" + cksn + "|" + mcc + "|" + mnc + "|" + cell_id + "|" + bsic + "|" + lur_date + "|")
 
 
@@ -435,16 +335,9 @@ function tt_lur_update(user_sim_checker, dictdata) {
           user_sim_checker[0].mnc = mnc,
           user_sim_checker[0].cell_id = cell_id,
           user_sim_checker[0].bsic = bsic,
-          user_sim_checker[0].lur_date = lur_date
+          user_sim_checker[0].lur_date = lur_date,
+          user_sim_checker[0].lur_fail_cnt = 0
       });
-
-      // lur_que.add({
-      //   imsi: imsi
-      // }, {
-      //   // delay: global_value.lur_time
-      //   delay: LUR_time
-      //   // jobId: imsi
-      // });
 
       write_log("tt_lur_update : lur_que add reTMSI " + LUR_time + " imsi : " + imsi)
     }
@@ -457,85 +350,67 @@ function tt_lur_update(user_sim_checker, dictdata) {
   }
   else if (dictdata['data1'] == 'LUR') {
     // LUR|conID|imsi|result|lur_time|  result  : 1 성공 / 0 -실패 / -1  채널로스 실패
-
     var command_line = dictdata['command']
     var conID = dictdata['data2']
     var imsi = dictdata['data3']
     var result = dictdata['data4']
     var lur_time = parseInt(dictdata['data5']) * 1000
-
-
-    // const promise = new Promise(function(resolve, reject) {
-    //   resolve(1);
-    // });
-
-    var mcc = user_sim_checker[0].mcc;
-    var mnc = user_sim_checker[0].mnc;
-    var global_carrier_check = 'mcc = "' + mcc + '"AND mnc = "' + mnc + '"';
-    let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-    var LUR_time = global_carrier_checker[0].LUR_time
     var lur_check = user_sim_checker[0].lur_check
 
-    if (true) { //lur이 시도 실패
-      if (result == 1) {
-        if (user_sim_checker[0].lur_date + LUR_time < now || lur_check == 0) {
 
+    var carrier_id = imsi.slice(0, 5)
+    var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
+    let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+
+    if (global_carrier_checker.length > 0) {
+
+      if (true) { //lur이 시도 실패
+        var LUR_time = global_carrier_checker[0].LUR_time
+        if (result == 1) {
+          if (user_sim_checker[0].lur_date + LUR_time < now || lur_check == 0) {
+
+            realm.write(() => {
+              user_sim_checker[0].lur_date = lur_time - 7200000,
+                user_sim_checker[0].lur_check = 1,
+                user_sim_checker[0].lur_fail_cnt = 0
+            });
+            write_log("tt_lur_update :  lur_que add LUR result success imsi : " + imsi)
+          }
+          else {
+            write_log("tt_lur_update :  lur_que add LUR result pass imsi : " + imsi)
+          }
+        }
+        else if (result == 0) {
+          console.log("tt_lur_update : lur_que add result 0  ")
           realm.write(() => {
-            user_sim_checker[0].lur_date = lur_time - 7200000,
-              user_sim_checker[0].lur_check = 1
-          });
-          // 테스트하기위해 잠시 제거
-          // lur_que.add({
-          //   imsi: imsi
-          // }, {
-          //   // delay: global_value.lur_time
-          //   delay: LUR_time,
-          //   //        jobId: imsi
-          // });
-          write_log("tt_lur_update :  lur_que add LUR result success imsi : " + imsi)
+            user_sim_checker[0].tmsi = "0"
+          })
+          write_log("tt_lur_update :  lur tmsi to zero " + user_sim_checker[0].imsi)
         }
         else {
-          write_log("tt_lur_update :  lur_que add LUR result pass imsi : " + imsi)
+          console.log("tt_lur_update : result fail " + result)
+          write_log("tt_lur_update :  LUR result fail : " + result)
         }
       }
-      else if (result == 0) {
-        console.log("tt_lur_update : lur_que add result 0  ")
-        realm.write(() => {
-          user_sim_checker[0].tmsi = "0"
-        })
-        write_log("tt_lur_update :  lur tmsi to zero " + user_sim_checker[0].imsi)
-      }
       else {
-        console.log("tt_lur_update : result fail " + result)
-        write_log("tt_lur_update :  LUR result fail : " + result)
-        // 테스트하기위해 잠시 제거
-        // lur_que.add({
-        //   imsi: imsi
-        // }
-        // ,{jobId :imsi }
-        // );
+        console.log("tt_lur_update : lur pass")
+        write_log("tt_lur_update :  LUR lur pass lur_check : " + lur_check + " imsi : " + imsi)
       }
 
     }
     else {
-      console.log("tt_lur_update : lur pass")
-      write_log("tt_lur_update :  LUR lur pass lur_check : " + lur_check + " imsi : " + imsi)
-
+      write_log("ttgo lur update ERROR : is not found country")
     }
   }
 }
 
-function lur_update2(dictdata) {
+function lur_update(dictdata) {
   var now = Date.now();
   var imsi = dictdata['data3']
   var user_sim_check = 'imsi = "' + imsi + '"';
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
 
-
-
   if (user_sim_checker.length > 0) {
-
-
     if (user_sim_checker[0].sim_type == 0) {
 
       if (dictdata['data1'] == 'reTMSI') {
@@ -559,9 +434,9 @@ function lur_update2(dictdata) {
         var mnc = user_sim_checker[0].mnc;
         var global_carrier_check = 'mcc = "' + mcc + '"AND mnc = "' + mnc + '"';
         let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-        var LUR_time = global_carrier_checker[0].LUR_time
 
-        if (true) { //lur이 시도 성공
+        if (global_carrier_checker.length > 0) { //lur이 시도 성공
+          var LUR_time = global_carrier_checker[0].LUR_time
 
           realm.write(() => {
             user_sim_checker[0].lur_check = 1,
@@ -574,7 +449,9 @@ function lur_update2(dictdata) {
               user_sim_checker[0].mnc = mnc,
               user_sim_checker[0].cell_id = cell_id,
               user_sim_checker[0].bsic = bsic,
-              user_sim_checker[0].lur_date = lur_date
+              user_sim_checker[0].lur_date = lur_date,
+              user_sim_checker[0].lur_fail_cnt = 0
+
           });
 
           lur_que.add({
@@ -604,10 +481,6 @@ function lur_update2(dictdata) {
         var lur_time = parseInt(dictdata['data5']) * 1000
 
 
-        // const promise = new Promise(function(resolve, reject) {
-        //   resolve(1);
-        // });
-
         var mcc = user_sim_checker[0].mcc;
         var mnc = user_sim_checker[0].mnc;
         var global_carrier_check = 'mcc = "' + mcc + '"AND mnc = "' + mnc + '"';
@@ -615,22 +488,22 @@ function lur_update2(dictdata) {
         var LUR_time = global_carrier_checker[0].LUR_time
         var lur_check = user_sim_checker[0].lur_check
 
-        if (true) { //lur이 시도 실패
+        if (global_carrier_checker.length > 0) { //lur이 시도 실패
           if (result == 1) {
             if (user_sim_checker[0].lur_date + LUR_time < now || lur_check == 0) {
 
               realm.write(() => {
                 user_sim_checker[0].lur_date = lur_time,
-                  user_sim_checker[0].lur_check = 1
+                  user_sim_checker[0].lur_check = 1,
+                  user_sim_checker[0].lur_fail_cnt = 0
               });
               // 테스트하기위해 잠시 제거
               lur_que.add({
                 imsi: imsi
               }, {
-                // delay: global_value.lur_time
                 delay: LUR_time,
-                //        jobId: imsi
               });
+
               write_log("lur_update :  lur_que add LUR result success imsi : " + imsi)
             }
             else {
@@ -648,210 +521,29 @@ function lur_update2(dictdata) {
             console.log("lur_update : result fail " + result)
             write_log("lur_update :  LUR result fail : " + result)
             // 테스트하기위해 잠시 제거
-            lur_que.add({
-                imsi: imsi
-              }
-              // ,{jobId :imsi }
-            );
+            // lur_que.add({
+            //     imsi: imsi
+            //   }
+            // ,{jobId :imsi }
+            // );
           }
-
         }
         else {
           console.log("lur_update : lur pass")
           write_log("lur_update :  LUR lur pass lur_check : " + lur_check + " imsi : " + imsi)
-
         }
       }
     }
     else if (user_sim_checker[0].sim_type == 1) {
       tt_lur_update(user_sim_checker, dictdata)
     }
-
-
   }
-
   else {
     console.log("[LUR_UPDATE] is not found command")
     write_log("lur_update :  is not found command")
 
   }
 }
-
-function lur_update(dictdata) {
-  var now = Date.now();
-
-  if (dictdata['data1'] == 'reTMSI') {
-    // reTMSI|conID|imsi|tmsi|lac|arfcn|kc|cksn|mcc|mnc|cellid|bsic|lur_time|
-
-    var command_line = dictdata['command']
-    var conID = dictdata['data2']
-    var imsi = dictdata['data3']
-    var tmsi = dictdata['data4']
-    var lac = dictdata['data5']
-    var arfcn = parseInt(dictdata['data6'])
-    var kc = dictdata['data7']
-    var cksn = parseInt(dictdata['data8'])
-    var mcc = dictdata['data9']
-    var mnc = dictdata['data10']
-    var cell_id = dictdata['data11']
-    var bsic = dictdata['data12']
-    var lur_date = parseInt(dictdata['data13'])
-
-    var user_sim_check = 'imsi = "' + imsi + '"';
-    let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
-
-
-
-    if (user_sim_checker.length > 0) {
-
-      var lur_check = user_sim_checker[0].lur_check;
-      var mcc = user_sim_checker[0].mcc;
-      var mnc = user_sim_checker[0].mnc;
-      var global_carrier_check = 'mcc = "' + mcc + '"AND mnc = "' + mnc + '"';
-      let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-      var LUR_time = global_carrier_checker[0].LUR_time
-
-      if (lur_check != 1) { //lur이 시도 실패
-
-        realm.write(() => {
-          user_sim_checker[0].lur_check = 1,
-            user_sim_checker[0].tmsi = tmsi,
-            user_sim_checker[0].lac = lac,
-            user_sim_checker[0].arfcn = arfcn,
-            user_sim_checker[0].kc = kc,
-            user_sim_checker[0].cksn = cksn,
-            user_sim_checker[0].mcc = mcc,
-            user_sim_checker[0].mnc = mnc,
-            user_sim_checker[0].cell_id = cell_id,
-            user_sim_checker[0].bsic = bsic,
-            user_sim_checker[0].lur_date = lur_date
-        });
-
-        lur_que.add({
-          imsi: imsi
-        }, {
-          // delay: global_value.lur_time
-          delay: LUR_time
-          // jobId: imsi
-        });
-
-        write_log("lur_update : lur_que add reTMSI " + LUR_time + " imsi : " + imsi)
-      }
-
-      else {
-        console.log("lur_update : lur pass")
-        write_log("lur_update :  LUR reTMSI pass lur_check : " + lur_check + " imsi : " + imsi)
-
-      }
-    }
-    else {
-      console.log("[LUR_UPDATE]reTMSI is not found sim")
-      write_log("lur_update :  reTMSI  is not found sim ")
-
-    }
-  }
-  else if (dictdata['data1'] == 'LUR') {
-    // LUR|conID|imsi|result|lur_time|  result  : 1 성공 / 0 -실패 / -1  채널로스 실패
-
-    var command_line = dictdata['command']
-    var conID = dictdata['data2']
-    var imsi = dictdata['data3']
-    var result = dictdata['data4']
-    var lur_time = parseInt(dictdata['data5']) * 1000
-
-    var user_sim_check = 'imsi = "' + imsi + '"';
-    let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
-
-    // const promise = new Promise(function(resolve, reject) {
-    //   resolve(1);
-    // });
-    if (user_sim_checker.length > 0) {
-      var mcc = user_sim_checker[0].mcc;
-      var mnc = user_sim_checker[0].mnc;
-      var global_carrier_check = 'mcc = "' + mcc + '"AND mnc = "' + mnc + '"';
-      let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-      var LUR_time = global_carrier_checker[0].LUR_time
-      var lur_check = user_sim_checker[0].lur_check
-
-      if (lur_check != 1) { //lur이 시도 실패
-        if (result == 1) {
-          realm.write(() => {
-            user_sim_checker[0].lur_date = lur_time,
-              user_sim_checker[0].lur_check = 1
-          });
-
-
-          console.log("lur_update : lur_que add result 1")
-          if (user_sim_checker[0].lur_check == 0) {
-
-          }
-
-          lur_que.add({
-            imsi: imsi
-          }, {
-            // delay: global_value.lur_time
-            delay: LUR_time,
-            //        jobId: imsi
-          });
-
-          write_log("lur_update :  lur_que add LUR result success imsi : " + imsi)
-        }
-        else if (result == 0) {
-
-          console.log("lur_update : lur_que add result 0  ")
-          realm.write(() => {
-            user_sim_checker[0].tmsi = "0"
-          })
-          // if (user_sim_checker[0].lur_check == 0) {
-          //
-          //   lur_que.add({
-          //     imsi: imsi
-          //   }, {
-          //     // delay: global_value.lur_time
-          //     delay: 60000,
-          //     //        jobId: imsi
-          //   });
-          //   realm.write(() => {
-          //     user_sim_checker[0].lur_date = lur_time,
-          //       user_sim_checker[0].lur_check = 1
-          //
-          //   });
-          // }
-
-          write_log("lur_update :  lur tmsi to zero " + user_sim_checker[0].tmsi)
-        }
-        else {
-
-          console.log("lur_update : result fail " + result)
-          write_log("lur_update :  LUR result fail : " + result)
-
-        }
-
-      }
-      else {
-        console.log("lur_update : lur pass")
-        write_log("lur_update :  LUR lur pass lur_check : " + lur_check + " imsi : " + imsi)
-
-      }
-    }
-    else {
-      console.log("[LUR_UPDATE]LUR is not found sim")
-      write_log("lur_update :  LUR is not found sim : " + imsi)
-
-    }
-  }
-
-  else {
-    console.log("[LUR_UPDATE] is not found command")
-    write_log("lur_update :  is not found command")
-
-  }
-
-
-}
-
-
-
 function lur_checker() {
   var now = Date.now();
   // var user_sim_check = 'user_id.@size >5';lur_update
@@ -893,7 +585,7 @@ function set_lur() {
       try {
 
         realm.write(() => {
-          user_sim_checker[0].lur_check = 1
+          user_sim_checker[0].lur_fail_cnt = 0
         });
       }
       catch (e) {
@@ -932,6 +624,11 @@ function lur_try(dictdata) {
       //   jobId: imsi
       // }
     );
+
+    realm.write(() => {
+      user_sim_checker[0].lur_fail_cnt = 0
+    });
+
     write_log("lur_try lur_que add")
   }
   else {
@@ -980,37 +677,41 @@ function reset_lurdate(dictdata) {
   }
 }
 
-function test() {
-  var ssss = check_que.getDelayed()
-  ssss.then(function(check_jobs) {
+function remove_check_que_jobs() {
+  var get_jobs = check_que.getDelayed()
+  get_jobs.then(function(check_jobs) {
     console.log(check_jobs);
     var length = check_jobs.length
     for (var i = 0; i < length; i++) {
       check_jobs[i].remove();
     }
-
+    write_log("remove check_que delayed jobs ")
   })
 }
 
-function test2() {
-  var ssss = check_que.getJobCounts()
-  ssss.then(function(value) {
-    console.log(value);
-    write_log("check_que size : ", value)
-  })
-}
-
-function test3() {
-  var ssss = lur_que.getDelayed()
-  ssss.then(function(lur_ques) {
+function remove_lur_que_jobs() {
+  var get_jobs = lur_que.getDelayed()
+  get_jobs.then(function(lur_ques) {
     console.log(lur_ques);
     var length = lur_ques.length
     for (var i = 0; i < length; i++) {
       lur_ques[i].remove();
     }
-
+    write_log("remove lur_que delayed jobs ")
   })
 }
-test()
-test3()
+
+function remove_jobs(dictdata) {
+  var que = dictdata['data1']
+
+  if (que = 'LUR') {
+    remove_lur_que_jobs()
+
+  }
+  else if (que = 'CHECK') {
+    remove_check_que_jobs()
+  }
+}
+remove_check_que_jobs()
+remove_lur_que_jobs()
 // set_lur()
