@@ -48,7 +48,7 @@ connection.on('error', function(error) {
 
 var simlist = [];
 let realm = new Realm({
-  path: '/home/ubuntu/manage_node/log/testRealm5.realm',
+  path: '/home/ubuntu/manage_node/object_data_copy_file.realm',
   deleteRealmIfMigrationNeeded: true,
   disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
@@ -74,6 +74,11 @@ process.on('message', (value) => {
   ETC_classifier(value.data);
 });
 
+function compactRealm() {
+  if(realm.compact()){
+    console.log("compact end")
+  }
+}
 
 //etc_que mp서버에 처리하는 것만 담당하고 있다.
 etc_que.process(function(job, done) {
@@ -241,6 +246,9 @@ function ETC_classifier(data) {
     case 'MSISDN': //심 전화번호 체크
       sim_msisdn_check(data);
       break;
+      case 'COMPACT':
+      compactRealm()
+      break;
     // case 'MYSQL': //realm mysql 데이터베이스 동기화
     //   send_mysql(data);
     //   break;
@@ -251,13 +259,13 @@ function ETC_classifier(data) {
       console.log(data);
   }
 }
-//realm에서 MYSQL 데이터베이스 데이터를 받기 위한 함수
+//MYSQL 데이터베이스 데이터를 받아 realm에 넣어주는 함수
 function DB_synchronization(dictdata) {
   var command_line = dictdata;
   var chosechema = command_line['data2'];
   if (chosechema == 'SIM') {
-    //현재 테스트를 위해 3개 아이디만 받고 있음
 
+    //현재 테스트를 위해 3개 심데이터만 받고 있음
     var sql = "SELECT * FROM tb_sim_list WHERE PID = 2433 OR PID = 2434 OR PID = 2435;";
     //sql SELECT pid, id,  sim_serial_no, imsi, simbank_name FORM tb_sim_list 2433, 2434
 
@@ -404,7 +412,6 @@ function DB_synchronization(dictdata) {
                 msisdn_ussd: result[i].msisdn_ussd,
                 simprice: result[i].sim_price,
                 add_time: result[i].add_time,
-                // LUR_time: parseInt(global_carrier[17],10),
                 LUR_time: result[i].lur_time,
                 lur_check_time: result[i].lur_check_time,
                 etc_check_time: result[i].etc_check_time,
@@ -436,49 +443,6 @@ function DB_synchronization(dictdata) {
 }
 
 
-// function send_mysql(dictdata) {
-//   var chosechema = dictdata['data2']
-//   if (chosechema == 'CARRIER') {
-//     console.log("CARRIER");
-//     var array = fs.readFileSync('./global_carrier.txt').toString().split("\n");
-//     for (var i = 0; i < array.length - 1; i++) {
-//       var temp = array[i]
-//       var global_carrier = temp.replace(/(\s*)/g, "").split(","); // 스플릿 오류로 인해 쪼개지지 않고 있어서 오류 발생한다.
-//       console.log("sss : " + array)
-//
-//       console.log(global_carrier)
-//
-//       try {
-//         var carrier_id = global_carrier[3] + global_carrier[4];
-//         var global_carrier_check = 'carrier_id = ' + parseInt(carrier_id) + '';
-//         let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-//
-//
-//         if (global_carrier_checker.length == 0) {
-//           var carrier_id = global_carrier[3] + global_carrier[4]
-//           var dbmsg = "DB|QUERY|INSERT INTO tb_global_carrier (carrier_id, country, country_code, carrier, mcc, mnc, smsc, callout_unit, callout_value, callin_unit, callin_value, smsout_price, smsin_price, charge_amount, balance_ussd, msisdn_ussd, sim_price, add_time, lur_time, lur_check_time, etc_check_time) VALUES ( " + carrier_id + ", \"" + global_carrier[0] + "\", \"" + global_carrier[1] + "\", \"" + global_carrier[2] + "\", \"" + global_carrier[3] + "\", \"" + global_carrier[4] + "\" , \"" + global_carrier[5] + "\", " + global_carrier[6] + "," + global_carrier[7] + ", " + global_carrier[8] + "," + global_carrier[9] + ", " + global_carrier[10] + ", " + global_carrier[11] + ", " + global_carrier[12] + ", \"" + global_carrier[13] + "\", \"" + global_carrier[14] + "\", " + global_carrier[15] + ", " + global_carrier[16] + "," + global_carrier[17] + "," + global_carrier[18] + "," + global_carrier[19] + ");|"
-//           // var dbmsg = "DB|QUERY|INSERT INTO tb_global_carrier VALUES (" + carrier_id + ",\"" + global_carrier[0] + "\",\"" + global_carrier[1] + "\",\"" + global_carrier[2] + "\",\"" + global_carrier[3] + "\",\"" + global_carrier[4] + "\",\"" + global_carrier[5] + "\"," + global_carrier[6] + "," + global_carrier[7] + "," + global_carrier[8] + "," + global_carrier[9] + "," + global_carrier[10] + "," + global_carrier[11] + "," + global_carrier[12] + ",\"" + global_carrier[13] + "\",\"" + global_carrier[14] + "\"," + global_carrier[15] + "," + global_carrier[16] + "," + global_carrier[17] + "," + global_carrier[18] + "," + global_carrier[19] + ");|"
-//
-//           console.log("[ETC] DB_synchronization  GLOBALCARRIER : " + dbmsg);
-//           write_log("[ETC] DB_synchronization  GLOBALCARRIER : " + dbmsg);
-//           addon_child.send_data(dbmsg)
-//
-//         }
-//         else {
-//           console.log("이미있는 global_carrier row 입니다. : " + i + "번")
-//         }
-//       }
-//       catch (e) {
-//         console.log(e)
-//       }
-//     }
-//   }
-// }
-//
-//
-
-
-
 //사용자 크래딧 업데이트 하는 함수이다.
 function credit_update(dictdata) {
   var command_line = dictdata;
@@ -500,32 +464,32 @@ function credit_update(dictdata) {
     console.log("credit_update error")
   }
 }
-//
-// function sim_expire_date_update(dictdata) {
-//   var command_line = dictdata;
-//   var command = command_line['command'];
-//   var sim_check = 'imsi != ""  AND user_id = "0" AND user_pid = 0';
-//   let sim_checker = realm.objects('SIM').filtered(sim_check);
-//   var now = Date.now();
-//   var seven = 86400000 * 5;
-//   var temp = now + seven;
-//   try {
-//     realm.write(() => {
-//       for (var i = 0; i < sim_checker.length; i++) {
-//         sim_checker[i].sim_expire_date = temp;
-//       }
-//     })
-//
-//     // var sql = "UPDATE tb_sim_list_test set sim_expire_date = " + temp;
-//     // query_Launcher(sql);
-//     console.log("sim end")
-//   }
-//   catch (e) {
-//     console.log("credit_update error")
-//   }
-// }
-//
 
+function sim_expire_date_update(dictdata) {
+  var command_line = dictdata;
+  var command = command_line['command'];
+  var sim_check = 'imsi != ""  AND user_id = "0" AND user_pid = 0';
+  let sim_checker = realm.objects('SIM').filtered(sim_check);
+  var now = Date.now();
+  var seven = 86400000 * 5;
+  var temp = now + seven;
+  try {
+    realm.write(() => {
+      for (var i = 0; i < sim_checker.length; i++) {
+        sim_checker[i].sim_expire_date = temp;
+      }
+    })
+
+    // var sql = "UPDATE tb_sim_list_test set sim_expire_date = " + temp;
+    // query_Launcher(sql);
+    console.log("sim end")
+  }
+  catch (e) {
+    console.log("credit_update error")
+  }
+}
+
+//심 잔액 체크
 function sim_balance_check(dictdata) {
   var imsi = dictdata['data2'];
   var port = dictdata['port'];
@@ -550,8 +514,8 @@ function sim_balance_check(dictdata) {
         data: msg,
         port: mp_port,
         ip: mp_ip
-
       });
+
       write_log("[ETC] sim_balance_check : " + msg);
       etc_que.add({
         imsi: imsi,
@@ -571,6 +535,7 @@ function sim_balance_check(dictdata) {
   }
 }
 
+//msisdn 채크
 function sim_msisdn_check(dictdata) {
   //MP|MSISDN|imsi|imei|tmsi|kc|cksn|lac|simbank_id|sim_serial_no|
   // ussd 커맨드, smsc 맨뒤에 추가
@@ -591,7 +556,6 @@ function sim_msisdn_check(dictdata) {
     var sim_id = user_sim_checker[0].sim_id
     var sim_serial_no = user_sim_checker[0].sim_serial_no
     var etc_msisdn_flag = user_sim_checker[0].etc_msisdn_flag
-
     var msisdn_ussd = user_carrier_checker[0].msisdn_ussd
     var smsc = user_carrier_checker[0].smsc
 
@@ -663,6 +627,8 @@ function sim_msisdn_check(dictdata) {
 //   }
 // }
 
+
+//realm 데이터베이스 내용 json 파일로 보여주는 함수
 function table_view(dictdata) {
   // console.log("USER RESULT",realm.objects('USER'));
   var command_line = dictdata;
@@ -682,15 +648,7 @@ function table_view(dictdata) {
     });
   }
   else if (chosechema == 'SIM') {
-    // console.log("SIM RESULT");
-    // console.log(realm.objects('SIM').length);
-    // console.log(realm.objects('SIM'));
-    // var simcheck = 'imsi != ""';
     var now = Date.now();
-    // var sim_check = 'imsi != ""  AND user_id = "0" AND user_pid = 0 AND sim_expire_date >"' + now + '"AND msisdn != ""';
-    // var match_sim_check = 'imsi.@size >=15 AND msisdn.@size >=8 AND sim_expire_date > "' + now + '"AND expire_match_date < "' + now+'"';
-    // var match_sim_check = 'imsi.@size >=15 AND msisdn.@size >=8 AND sim_expire_date > ' + now  + '';
-    // console.log(match_sim_check);
     let sim_checker = realm.objects('SIM')
     if (sim_checker.length > 0) {
 
@@ -711,7 +669,6 @@ function table_view(dictdata) {
     if (rate_checker.length > 0) {
       console.log(rate_checker.length)
       console.log(rate_checker)
-
     }
     else {
       console.log("RATE가 없습니다.")
@@ -721,21 +678,11 @@ function table_view(dictdata) {
 
     let carrier_checker = realm.objects('GLOBALCARRIER')
     console.log(carrier_checker)
-
     var carrier_json = JSON.stringify(carrier_checker);
     fs.writeFile('realm_carrier.json', carrier_json, 'utf8', function(err) {
       if (err) throw err;
       console.log('complete');
     });
-    // if (carrier_checker.length > 0) {
-    //   console.log(carrier_checker.length)
-    //   for (var i = 0; carrier_checker.length > i; i++) {
-    //     console.log(carrier_checker[i])
-    //   }
-    // }
-    // else {
-    //   console.log("GLOBALCARRIER가 없습니다.")
-    // }
   }
   else if (chosechema == 'ALL') {
     console.log("USER RESULT");
@@ -744,13 +691,14 @@ function table_view(dictdata) {
     console.log("SIM RESULT");
     console.log(realm.objects('SIM').length);
     console.log(realm.objects('SIM'));
-
   }
   else {
     console.log("table_view command not found");
   }
 }
 
+
+//특정 데이터의 id 값을 통해 데이터를 지우는 함수
 function point_death(dictdata) {
   var chosechema = dictdata['data2'];
   var id = dictdata['data3'];
@@ -813,6 +761,7 @@ function point_death(dictdata) {
   }
 }
 
+//특정 스키마 전체를 지우는 함수
 function death(dictdata) {
   var chosechema = dictdata['data2'];
   try {
@@ -855,7 +804,7 @@ function death(dictdata) {
 
       })
     }
-    else if (chosechema == 'ALL') {
+    else if (chosechema == 'ALL') { //user, sim 전체 데이터 삭제
       realm.write(() => {
         realm.deleteAll();
         var alluser = realm.objects('USER');
@@ -873,8 +822,7 @@ function death(dictdata) {
     write_log(" death err: " + err)
   }
 }
-
-
+//timsi 값 0로 초기화하는 함수 
 function tmsi_zero(imsi) {
 
   var user_sim_check = 'imsi =  "' + imsi + '"';

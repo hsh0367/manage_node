@@ -12,8 +12,10 @@ var check_que = new Queue('check_que');
 //   var migratedRealm = new Realm(schemas[nextSchemaIndex++]);
 //   migratedRealm.close();
 // }
+
+
 let realm = new Realm({
-  path: '/home/ubuntu/manage_node/log/testRealm5.realm',
+  path: '/home/ubuntu/manage_node/object_data_copy_file.realm',
   deleteRealmIfMigrationNeeded: true,
   disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
@@ -85,7 +87,7 @@ lur_que.process(function(job, done) {
     write_log("lur_que lur_check_time : " + lur_check_time + " imsi  : " + imsi + "")
 
     write_log("ip  : " + ip + " port  : " + port + "")
-    if (lur_fail_cnt < 10 && global_carrier_checker.length > 0) {
+    if (lur_fail_cnt < 8 && global_carrier_checker.length > 0) {
       var lur_check_time = global_carrier_checker[0].lur_check_time
       var LUR_time = global_carrier_checker[0].LUR_time
       var ip = global_carrier_checker[0].mp_ip
@@ -149,7 +151,6 @@ check_que.process(function(job, done) {
       var lur_date = user_sim_checker[0].lur_date;
       var lur_check = user_sim_checker[0].lur_check;
       var lur_fail_cnt = user_sim_checker[0].lur_fail_cnt;
-
 
       var LUR_time = global_carrier_checker[0].LUR_time
       var total = lur_date + LUR_time

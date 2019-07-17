@@ -60,6 +60,7 @@ function parser(data) {
   });
 };
 
+// sim_charge CH_classifier
 function CH_classifier(data) {
   console.log("CH_classifier")
   switch (data['data1']) {
@@ -90,6 +91,7 @@ function CH_classifier(data) {
   }
 }
 
+//테스트용 서비스하는 국가별 CAIIRE_IDC 찾기
 
 const global_carrier_pcode = {
   51503: "SM100",
@@ -101,6 +103,8 @@ const global_carrier_pcode = {
   45202: "602",
   45204: "600",
 }
+
+//배트남 통신사별 코드
 const vietnam_type = {
 
   601: "VMS",
@@ -108,6 +112,7 @@ const vietnam_type = {
   600: "VTT",
 }
 
+//https req 데이터를 받아서 파싱하는 함수
 
 function https_req_parse(url) {
   return new Promise((resolve, reject) => {
@@ -143,6 +148,7 @@ function https_req_parse(url) {
 
 }
 
+//http req 데이터를 받아서 파싱하는 함수
 function http_req_parse(url) {
   return new Promise((resolve, reject) => {
 
@@ -176,6 +182,7 @@ function http_req_parse(url) {
   })
 
 }
+//미얀마 심 충전 함수
 function Myanmar_charge(dictdata) {
   // https://loadcentral.net/sellapi.do?uid=uid&auth=md5_pwd&pcode=ztest1&to
   // =09210000001&rrn=123456789012
@@ -235,6 +242,8 @@ function Myanmar_charge(dictdata) {
   })
 }
 
+
+//베트남 심충전 함수
 function test_Vietnam_intergration(dictdata) {
   // https://loadcentral.net/sellapi.do?uid=uid&auth=md5_pwd&pcode=ztest1&to
   // =09210000001&rrn=123456789012
@@ -364,6 +373,7 @@ function Vietnam_intergration(dictdata) {
   })
 }
 
+//필리핀 심 충전 함수
 function Philippines_loadcentral(dictdata) {
   // https://loadcentral.net/sellapi.do?uid=uid&auth=md5_pwd&pcode=ztest1&to
   // =09210000001&rrn=123456789012
@@ -399,7 +409,7 @@ function Philippines_loadcentral(dictdata) {
   console.log(url)
   // var test = "https://loadcentral.net/sellapiinq.do?uid=63xxxxxxxxxx&auth=6cfa21290ed4f9cac5f366aaf2889526&rrn=123456789012"
   var charge_result = https_req_parse(url).catch(() => {});
-
+  //요청후 받는다.
   charge_result.then(function(result) {
 
 
@@ -432,10 +442,11 @@ function Philippines_loadcentral(dictdata) {
   })
 }
 
+//받은 ㄷ이터 파싱에 쓰인다.
 function xmlFormatter(mystring) {
   return mystring.replace(/&/g, "&amp;").replace(/>/g, "&gt;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 }
-
+// 인도네시아 심충전 요청 함수
 function Indonesia_mobilepulsa(dictdata) {
 
   var mcc = dictdata['data1'];
@@ -509,6 +520,7 @@ function Indonesia_mobilepulsa(dictdata) {
   xhr.send(result);
 }
 
+//인도네시아 심충전 요청후 결과값 받는다.
 function recv_Indonesia(dictdata) {
   // INNI|RESULT|SUCCESS|PHIL0000|510108042298969|90382591|085280298969|4082378|
   var result = dictdata['data3'];

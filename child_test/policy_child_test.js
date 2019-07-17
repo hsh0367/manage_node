@@ -11,7 +11,7 @@ addon_child.setConnect(5555, "127.0.0.1");
 // var realm = new Realm(Realm.defaultPath)
 
 let realm = new Realm({
-  path: '/home/ubuntu/manage_node/log/testRealm5.realm',
+  path: '/home/ubuntu/manage_node/object_data_copy_file.realm',
   deleteRealmIfMigrationNeeded: true,
   disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
@@ -88,6 +88,7 @@ function command_classifier(data) {
   }
 }
 
+//비밀번호 암호화 함수
 function psw_encryption(password) {
   return "*" + crypto.createHash('sha1').update(crypto.createHash('sha1').update(password).digest('binary')).digest('hex').toUpperCase();
 }
@@ -156,6 +157,7 @@ function pad(n, width) {
   return n.length >= width ? n : new Array(width - n.length + 1).join('0') + n;
 }
 
+//회원가입
 function register(dictdata) {
   write_log("policy_child register on " )
 
@@ -215,6 +217,7 @@ function register(dictdata) {
   }
 }
 
+//로그인 처리 msg 를 만들고 전달하는 함수
 function login_msg(login_data, sim_data) {
 
   var msg = login_data.command + "|" + login_data.sub_command + "|" + login_data.seq + "|" + login_data.tcp_fd + "|SUCCESS|" + sim_data.user_serial + "|" + sim_data.credit + "|1[" + sim_data.imsi + ":" + sim_data.msisdn + ":" + timeConverter(sim_data.expire_match_date) + "]|";
@@ -224,10 +227,9 @@ function login_msg(login_data, sim_data) {
   });
   console.log("policy_child login msg : " + msg)
   write_log("policy_child login msg : " + msg)
-
 }
 
-
+//ttgo 로그인 처리하는 함수
 function tt_login(login_data) {
   var sim_data = new Object();
 
@@ -250,14 +252,8 @@ function tt_login(login_data) {
 
   write_log("user_checker.length : " + user_checker.length)
   if (user_checker.length > 0) { //if user is found
-    write_log("22222 : " + login_data.imsi)
-
     var user_sim_check = 'imsi = "' + login_data.imsi + '" AND user_id =  "' + login_data.user_id + '"';
     var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
-
-
-
-
     sim_data.user_serial = user_checker[0].user_serial;
     sim_data.credit = user_checker[0].credit;
     sim_data.join_type = user_checker[0].join_type;
@@ -266,20 +262,12 @@ function tt_login(login_data) {
       sim_data.imsi = user_sim_checker[0].imsi
       sim_data.msisdn = user_sim_checker[0].msisdn
 
-
       console.log("policy_child login sim  o");
-
-      // realm.write(() => {
-      //   user_checker[0].user_sim_imsi = login_data.imsi;
-      //   user_sim_checker[0].imsi = login_data.imsi;
-      // });
-
-
       login_msg(login_data, sim_data);
 
     }
     else { //심구매하지 않는 유저일경우
-      write_log("111111111111111111 : " + login_data.imsi)
+      write_log("tt_login not found sim : " + login_data.imsi)
       var mcc = login_data.imsi.slice(0, 3)
       var mnc = login_data.imsi.slice(3, 5)
       var imei = imeigc.randomIMEI_fullRandom();
@@ -291,6 +279,8 @@ function tt_login(login_data) {
         var old_sim_check = 'imsi = "' + user_checker[0].user_sim_imsi + '"';
         var old_sim_checker = realm.objects('SIM').filtered(old_sim_check);
 
+
+        //그전에 매칭되었던 심인 경우 삭제
         if (old_sim_checker.length > 0) {
           realm.write(() => {
             realm.delete(old_sim_checker)
@@ -300,7 +290,7 @@ function tt_login(login_data) {
 
 
 
-
+      //매치된 심이 있는지 확인
       if (match_sim_checker.length > 0) {
         write_log("match_sim_checker.length : " + match_sim_checker.length)
         realm.write(() => {
@@ -339,117 +329,7 @@ function tt_login(login_data) {
     }
   }
 }
-
-// function tt_login(login_data) {
-//   var sim_data = new Object();
-//
-//
-//   write_log("22222 : "+login_data.imsi)
-//
-//   sim_data.join_type = 0
-//   sim_data.user_serial = 0
-//   sim_data.credit = 0
-//   sim_data.imsi = 0
-//   sim_data.msisdn = 0
-//   sim_data.expire_match_date = 0
-//
-//   var user_check = 'user_id = "' + login_data.user_id + '" AND user_pw = "' + login_data.encpwd + '"';
-//   var now = Date.now();
-//
-//   var user_checker = realm.objects('USER').filtered(user_check);
-//
-//   if (user_checker.length > 0) { //if user is found
-//     write_log("22222 : "+login_data.imsi)
-//
-//     var user_sim_check = 'imsi = "' + login_data.imsi + '" AND user_id =  "' + login_data.user_id + '"';
-//     var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
-//
-//
-//
-//
-//     sim_data.user_serial = user_checker[0].user_serial;
-//     sim_data.credit = user_checker[0].credit;
-//     sim_data.join_type = user_checker[0].join_type;
-//
-//     if (user_sim_checker.length > 0) { //심구매 유저일경우
-//       sim_data.imsi = user_sim_checker[0].imsi
-//       sim_data.msisdn = user_sim_checker[0].msisdn
-//
-//
-//       console.log("policy_child login sim  o");
-//
-//       // realm.write(() => {
-//       //   user_checker[0].user_sim_imsi = login_data.imsi;
-//       //   user_sim_checker[0].imsi = login_data.imsi;
-//       // });
-//
-//
-//       login_msg(login_data, sim_data);
-//
-//     }
-//     else { //심구매하지 않는 유저일경우
-//       write_log("111111111111111111 : "+login_data.imsi)
-//       var mcc = login_data.imsi.slice(0, 3)
-//       var mnc = login_data.imsi.slice(3, 5)
-//       var imei = imeigc.randomIMEI_fullRandom();
-//
-//       var match_sim_check = 'imsi = "' + login_data.imsi + '"';
-//       var match_sim_checker = realm.objects('SIM').filtered(match_sim_check);
-//
-//       if (user_chekcer[0].user_sim_imsi != login_data.imsi && user_chekcer[0].user_sim_imsi != '0') {
-//         var old_sim_check = 'imsi = "' + user_chekcer[0].user_sim_imsi + '"';
-//         var old_sim_checker = realm.objects('SIM').filtered(old_sim_check);
-//
-//         if (old_sim_checker.length > 0) {
-//           realm.write(() => {
-//             realm.delete(old_sim_checker)
-//           });
-//         }
-//       }
-//
-//
-//
-//
-//       if (match_sim_checker.length > 0) {
-//         write_log("match_sim_checker.length : "+match_sim_checker.length)
-//         realm.write(() => {
-//           realm.delete(match_sim_checker)
-//
-//           var SIM = realm.create('SIM', {
-//             user_id: login_data.user_id,
-//             imsi: login_data.imsi,
-//             imei: imei,
-//             mcc: mcc,
-//             mnc: mnc,
-//             sim_type: sim_data.join_type,
-//           });
-//           user_checker[0].user_sim_imsi = login_data.imsi;
-//         });
-//       }
-//       else {
-//         realm.write(() => {
-//           var SIM = realm.create('SIM', {
-//             user_id: login_data.user_id,
-//             imsi: login_data.imsi,
-//             imei: imei,
-//             mcc: mcc,
-//             mnc: mnc,
-//             sim_type: sim_data.join_type,
-//           });
-//           user_checker[0].user_sim_imsi = login_data.imsi;
-//         });
-//       }
-//
-//
-//
-//       sim_data.imsi = login_data.imsi;
-//       login_msg(login_data, sim_data);
-//       console.log("policy_child login sim  x");
-//     }
-//   }
-// }
-
-
+//로그인 처리 함수
 function login(dicdata) {
   var login_data = new Object();
   var sim_data = new Object();
@@ -480,7 +360,7 @@ function login(dicdata) {
   var user_checker = realm.objects('USER').filtered(user_check);
 
   if (user_checker.length > 0) { //if user is found
-    if (user_checker[0].join_type == 1) {
+    if (user_checker[0].join_type == 1) { // ttgo 일경우
       tt_login(login_data)
     }
     else {
@@ -522,7 +402,7 @@ function login(dicdata) {
   }
 }
 
-
+// 유닉스 타임스탬프 문자로 변환 함수
 function timeConverter(UNIX_timestamp) {
   var a = new Date(UNIX_timestamp);
   var months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
@@ -536,6 +416,8 @@ function timeConverter(UNIX_timestamp) {
   return time;
 }
 
+
+//fcm_key 새로 만드는 함수
 function fcm_key_renewal(dicdata) {
   var command_line = dicdata;
   var command = command_line['command'];
@@ -576,7 +458,7 @@ function fcm_key_renewal(dicdata) {
     write_log("policy_child fcm_key_renewal ERR : " + msg);
   }
 }
-
+//voip_key 새롭게 만들어주는 함수
 function voip_key_renewal(dicdata) {
   var command_line = dicdata;
   var command = command_line['command'];
@@ -619,6 +501,7 @@ function voip_key_renewal(dicdata) {
 //recv : Policy|TS07|Seq|serial|id|auto_flag|
 //send : websock_fd, id , auto_flag
 
+//auto_flag를 업데이트해주는 함수
 function auto_flag_renewal(dicdata) {
 
   var command_line = dicdata;
@@ -676,6 +559,7 @@ function auto_flag_renewal(dicdata) {
   }
 }
 
+//심구매 처리 msg를 만들고 전달하는 함수
 function buy_sim_msg(buy_sim_data, sim_data) {
   var now = Date.now();
 
@@ -692,6 +576,7 @@ function buy_sim_msg(buy_sim_data, sim_data) {
 
 }
 
+//심구매를 처리하는 함수
 function buy_sim(dicdata) {
   //Policy|CS2|Seq|serial|id|carrier|join_app_type|order_id|event_flag|
 
@@ -718,19 +603,20 @@ function buy_sim(dicdata) {
 
   sim_data.sim_price = 0
   sim_data.add_time = 0
-
   sim_data.msisdn = 0
   sim_data.credit = 0
   sim_data.user_pid = 0
   sim_data.user_id = 0
   sim_data.user_serial = 0
-
   sim_data.msisdn = 0
   sim_data.expire_match_date = 0
   sim_data.imsi = 0
 
 
+
   buy_sim_data.Type = 0;
+
+  //유저가 선택한 통신사
   if (buy_sim_data.mobileType == 'smart') {
     buy_sim_data.Type = 1;
   }
@@ -749,7 +635,6 @@ function buy_sim(dicdata) {
   var mobile_type = buy_sim_data.mobileType.toUpperCase();
   var global_carrier_check = 'carrier = "' + mobile_type + '"';
   let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-  console.log(mobile_type)
 
   try {
     //매치가 되어있지않는 심에 대한 필터링
@@ -758,24 +643,24 @@ function buy_sim(dicdata) {
 
 
 
-    sim_data.sim_price = global_carrier_checker[0].simprice
-    sim_data.add_time = global_carrier_checker[0].add_time
 
 
-    if (user_checker.length > 0) { //사용자 체크
+    if (user_checker.length > 0 && global_carrier_checker.length >  0) { //사용자 체크
 
       sim_data.credit = user_checker[0].credit;
       sim_data.user_pid = user_checker[0].user_pid;
       sim_data.user_id = user_checker[0].user_id;
       sim_data.user_serial = user_checker[0].user_serial;
 
+      sim_data.sim_price = global_carrier_checker[0].simprice
+      sim_data.add_time = global_carrier_checker[0].add_time
 
       //user credit check
 
       if (sim_data.credit >= sim_data.sim_price) { // if credit is to buy
         // find use to sim
 
-        if (user_sim_checker.length > 0) { // 심이 이미 있는경우
+        if (user_sim_checker.length > 0) { // 심이 이미 있는경우 (연장인경우)
 
           var user_sim_check = 'expire_match_date  >"' + now + '" AND user_id = "' + buy_sim_data.user_id + '" ';
           var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
@@ -802,7 +687,7 @@ function buy_sim(dicdata) {
 
           buy_sim_msg(buy_sim_data, sim_data)
         }
-        else { //심이 없는경우
+        else { //심이 없는경우(구매하는 경우)
           var match_sim_check = 'expire_match_date < ' + now + 'AND mobileType = ' + buy_sim_data.Type + ' AND sim_type = 0';
           var match_sim_checker = realm.objects('SIM').filtered(match_sim_check);
 
@@ -870,6 +755,7 @@ function buy_sim(dicdata) {
   }
 }
 
+//크래딧 구매 현재 틀만 만들어져 있는 상태
 function top_up(dictdata) {
 
   //Policy|CS7|Seq|serial|id|topup_price|join_app_type|description|topup_method|order_id|event_flag|

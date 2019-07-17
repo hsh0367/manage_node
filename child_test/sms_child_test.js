@@ -22,7 +22,7 @@ function write_log(data) {
 }
 
 let realm = new Realm({
-  path: '/home/ubuntu/manage_node/log/testRealm5.realm',
+  path: '/home/ubuntu/manage_node/object_data_copy_file.realm',
   deleteRealmIfMigrationNeeded: true,
   disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
@@ -136,12 +136,14 @@ function is_local_check(outbound, imsi) {
   }
 }
 
+//value가 숫자인지 아닌지 판별하는 함수
 function filterInt(value) {
   if (/^(\+)?([0-9]+|Infinity)$/.test(value))
     return Number(value);
   return NaN;
 }
 
+//sms_cnt 값을 체크하는 함수 127 기준으로 초과시 0으로 변환 아닐경우 1증가
 function sms_cnt_check(send_sms_cnt, user_sim_checker) {
 
   if (send_sms_cnt == 127) {
@@ -158,6 +160,7 @@ function sms_cnt_check(send_sms_cnt, user_sim_checker) {
   }
 }
 
+//문자발신 결과 msg를 만들어 보내는 함수
 function sms_out_msg(sms_out_data, sim_data) {
   var now = Date.now();
   //SMS|SMSOUT|SEQ|과금금액|imei|tmsi|kc|cksn|msisdn|user_sim_checker[0].send_sms_cnt|simbank_id|sim_serial_no|error|
@@ -170,6 +173,9 @@ function sms_out_msg(sms_out_data, sim_data) {
   console.log(msg);
 }
 
+//ttgo 문자 발신을 처리하는 함수
+//user_checker 유저객체
+//sms_out_data 받은 데이터 오브젝트
 function tt_sms_out(sms_out_data, user_checker) {
   var sim_data = new Object();
 
@@ -185,11 +191,16 @@ function tt_sms_out(sms_out_data, user_checker) {
     console.log("outbound_n : " + outbound_n)
     if (outbound_n != 0) { // is local
 
-      //필요데이토 초기화
+      //필요데이터 초기화
+      var carrier_id = sms_out_data.sim_imsi.slice(0, 5)
+      var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
+      let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
 
 
-      if (user_sim_checker.length > 0) { // 유저가 존재하고 심이 있을경우
 
+      if (user_sim_checker.length > 0 && global_carrier_checker.length > 0) { // 유저, 심 그리고 global_carrier에 있을경우
+
+        //유저데이터와 심데이터에서 필요한 데이터 sim_data 오브젝트에 복사
         sim_data.credit = user_checker[0].credit;
         sim_data.fcm_push_key = user_checker[0].fcm_push_key;
         sim_data.join_type = user_checker[0].join_type;
@@ -206,9 +217,11 @@ function tt_sms_out(sms_out_data, user_checker) {
         sim_data.mcc = user_sim_checker[0].mcc;
         sim_data.mnc = user_sim_checker[0].mnc;
 
-        var global_carrier_check = 'mcc = "' + sim_data.mcc + '"AND mnc = "' + sim_data.mnc + '"';
-        let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+
+
         console.log("mcc mnc : " + sim_data.mcc + sim_data.mnc)
+
+
         sim_data.smsout_price = 0;
         sim_data.area_name = global_carrier_checker[0].carrier;
         sim_data.mp_port = global_carrier_checker[0].mp_port;
@@ -224,7 +237,6 @@ function tt_sms_out(sms_out_data, user_checker) {
       }
       else {
         sms_out_data.error = 100
-
         // 유저와심이 없을 경우 sip
         sms_out_msg(sms_out_data, sim_data)
       }
@@ -301,7 +313,13 @@ function sms_out(dictdata) {
         console.log("outbound_n : " + outbound_n)
         if (outbound_n != 0) { // is local
 
-          if (user_sim_checker.length > 0) { // 유저가 존재하고 심이 있을경우
+
+          var carrier_id = sms_out_data.sim_imsi.slice(0, 5)
+          var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
+          let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+
+
+          if (user_sim_checker.length > 0 && global_carrier_checker.length > 0) { // 유저가 존재하고 심이 있을경우
 
             sim_data.credit = user_checker[0].credit;
             sim_data.fcm_push_key = user_checker[0].fcm_push_key;
@@ -319,9 +337,6 @@ function sms_out(dictdata) {
             sim_data.mcc = user_sim_checker[0].mcc;
             sim_data.mnc = user_sim_checker[0].mnc;
 
-            var global_carrier_check = 'mcc = "' + sim_data.mcc + '"AND mnc = "' + sim_data.mnc + '"';
-            let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-            console.log("mcc mnc : " + sim_data.mcc + sim_data.mnc)
             sim_data.smsout_price = global_carrier_checker[0].smsout_price;
             sim_data.area_name = global_carrier_checker[0].carrier;
             sim_data.mp_port = global_carrier_checker[0].mp_port;
@@ -372,6 +387,7 @@ function sms_out(dictdata) {
 
 }
 
+// 문자 수신에 대한 처리 msg를 만들고 보내는 함수
 function sms_in_msg(sms_in_data, sim_data) {
   var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
   var msg = sms_in_data.command + "|" + sms_in_data.sub_command + "|" + sms_in_data.seq + "|" + sim_data.user_serial + "|" + sim_data.user_id + "|" + sim_data.fcm_push_key + "|" + 0 + "|" + sim_data.app_type + "|" + 0 + "|"
@@ -388,6 +404,7 @@ function sms_in_msg(sms_in_data, sim_data) {
   // tb_sms_list (id, user_serial, mobile_number, isAppsend,err_code,simbank_name,sim_imsi, sms_date, join_app_type,credit_pid)
 }
 
+//문자 수신에대한 처리를 하는 함수
 function sms_in(dictdata) {
   //IN - SMS|SMSIN|SEQ|sim_imsi|sms_pdu|
   //OUT - SMS|SMSIN|SEQ|tcp_id|id|push_key|join_app_type|os_type|
@@ -404,7 +421,7 @@ function sms_in(dictdata) {
   sms_in_data.port = command_line['port'];
 
 
-  var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 다임컨버트를 해줄경우 상관이 없다.
+  var now = Date.now(); //바로 REALM에서 데이터를 쓰기때문에 /1000을해준다 타임컨버트를 해줄경우 상관이 없다.
 
   var pdu_data = pdu.parse(sms_in_data.sms_pdu);
   sms_in_data.body = pdu_data._ud._data;
@@ -444,7 +461,13 @@ function sms_in(dictdata) {
   let user_checker = realm.objects('USER').filtered(user_check);
 
 
-  if (user_sim_checker.length > 0 && user_checker.length > 0) {
+  var carrier_id = sms_in_data.sim_imsi.slice(0, 5)
+  var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
+  let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+
+
+  // 유저,심, 서비스하는 국가 이통사가 맞을경우
+  if (user_sim_checker.length > 0 && user_checker.length > 0 && global_carrier_checker.length > 0) {
 
     sim_data.user_id = user_checker[0].user_id;
     sim_data.user_serial = user_checker[0].user_serial;
@@ -461,16 +484,15 @@ function sms_in(dictdata) {
     sim_data.mcc = user_sim_checker[0].mcc;
     sim_data.mnc = user_sim_checker[0].mnc;
 
-    var global_carrier_check = 'mcc = "' + sim_data.mcc + '"AND mnc = "' + sim_data.mnc + '"';
-    let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
-
     sim_data.area_name = global_carrier_checker[0].carrier;
     sim_data.price = global_carrier_checker[0].smsin_price;
 
     // sms_in_data.price = global_carrier_checker[0].smsin_price;
     sms_in_data.description = sms_in_data.outbound + " / " + sim_data.msisdn;
 
-
+    //ttgo 일경우 문자에 대한 관리를 하지 않지만
+    //everytt 일경우 광고문자자 해외에서 오는 문자를 관리하기 때문에 해외에서 오는 문자의 경우 DB에 기록만 한다.
+    //아닐경우 문자를 보내준다.
     if (sim_data.join_type == 1) {
       sms_in_msg(sms_in_data, sim_data)
     }
@@ -484,7 +506,6 @@ function sms_in(dictdata) {
       else {
         sms_in_msg(sms_in_data, sim_data)
       }
-
     }
   }
   else {
@@ -493,6 +514,7 @@ function sms_in(dictdata) {
   }
 }
 
+//문자 결과에 대한 처리 msg를 생성하고 보내는 함수
 function sms_result_msg(sms_result_data, sim_data) {
   var now = Date.now();
   var sms_reslut_msg = "DB|D08|SMSRESULT|" + sim_data.user_pid + "|" + sim_data.user_serial + "|" + sim_data.user_id + "|" + sim_data.credit + "|" +
@@ -502,6 +524,10 @@ function sms_result_msg(sms_result_data, sim_data) {
   addon_child.send_data(sms_reslut_msg);
 }
 
+
+//ttgo에 대한 문자 결과를 처리하는 함수
+//sms_result_data : 받은 데이터들의 오브젝트
+//user_checker : 해당 유저 객체
 function tt_sms_result(sms_result_data, user_checker) {
   var sim_data = new Object();
   var user_sim_check = 'imsi = "' + sms_result_data.sim_imsi + '" AND user_id ="' + sms_result_data.user_id + '"';
@@ -519,8 +545,11 @@ function tt_sms_result(sms_result_data, user_checker) {
   sim_data.sim_serial_no = 0;
   sim_data.msisdn = 0;
   sim_data.area_name = 0;
+  var carrier_id = sms_result_data.sim_imsi.slice(0, 5)
+  var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
+  let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
 
-  if (user_sim_checker.length > 0) {
+  if (user_sim_checker.length > 0 && global_carrier_checker.length > 0) {
     sim_data.imsi = user_sim_checker[0].imsi;
     sim_data.simbank_name = user_sim_checker[0].simbank_name;
     sim_data.sim_serial_no = user_sim_checker[0].sim_serial_no;
@@ -528,16 +557,16 @@ function tt_sms_result(sms_result_data, user_checker) {
     sim_data.mcc = user_sim_checker[0].mcc;
     sim_data.mnc = user_sim_checker[0].mnc;
 
-    var global_carrier_check = 'mcc = "' + sim_data.mcc + '"AND mnc = "' + sim_data.mnc + '"';
-    let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+
     sim_data.area_name = global_carrier_checker[0].carrier;
     sms_result_data.description = sms_result_data.outbound + " / " + sim_data.msisdn;
     if (sms_result_data.sms_result == 'SUCCESS') {
       //크래딧  차감, 심과 사용자 매칭, tb_credit_history입력
-      sim_data.credit = sim_data.credit - sms_result_data.price
-      realm.write(() => {
-        user_checker[0].credit = sim_data.credit; //크래딧 차감
-      });
+      //ttgo일 경우 크래딧 차감을 하지 않는다. 하지만 언제 룰이 바뀔지도 모른다.
+      //sim_data.credit = sim_data.credit - sms_result_data.price
+      // realm.write(() => {
+      //   user_checker[0].credit = sim_data.credit; //크래딧 차감
+      // });
       sms_result_msg(sms_result_data, sim_data)
     }
     else if (sms_result_data.sms_result == 'FAIL') { //문자 실패인 경우
@@ -547,6 +576,7 @@ function tt_sms_result(sms_result_data, user_checker) {
   }
 }
 
+//문자 결과 처리를 하는 함수
 function sms_result(dictdata) {
   //IN - SMS|SMSRESULT|SEQ|sim_imsi|tcp_id|id|outbound|과금 금액|
   //OUT - ""
@@ -577,6 +607,12 @@ function sms_result(dictdata) {
   var user_sim_check = 'imsi = "' + sms_result_data.sim_imsi + '" AND expire_match_date > ' + now + ' AND user_id ="' + sms_result_data.user_id + '"';
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
 
+
+  var carrier_id = sms_result_data.sim_imsi.slice(0, 5)
+  var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
+  let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+
+
   sim_data.user_id = 0
   sim_data.user_serial = 0
   sim_data.fcm_push_key = 0
@@ -599,22 +635,22 @@ function sms_result(dictdata) {
     sim_data.user_pid = user_checker[0].user_pid;
     sim_data.credit = user_checker[0].credit;
 
-    if (sim_data.join_type == 1) {
+    if (sim_data.join_type == 1) {//ttgo 일경우
       tt_sms_result(sms_result_data, user_checker)
     }
-    else if (sim_data.join_type == 0 && user_sim_checker.length > 0) {
+    else if (sim_data.join_type == 0 && user_sim_checker.length > 0 && global_carrier_checker.length > 0 ) {
+
+
       sim_data.imsi = user_sim_checker[0].imsi;
       sim_data.simbank_name = user_sim_checker[0].simbank_name;
       sim_data.sim_serial_no = user_sim_checker[0].sim_serial_no;
       sim_data.msisdn = user_sim_checker[0].msisdn;
       sim_data.mcc = user_sim_checker[0].mcc;
       sim_data.mnc = user_sim_checker[0].mnc;
-      var global_carrier_check = 'mcc = "' + sim_data.mcc + '"AND mnc = "' + sim_data.mnc + '"';
-      let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
 
       sim_data.area_name = global_carrier_checker[0].carrier;
       sms_result_data.description = sms_result_data.outbound + " / " + sim_data.msisdn;
-      if (sms_result_data.sms_result == 'SUCCESS') { //전화 연결이 된경우
+      if (sms_result_data.sms_result == 'SUCCESS') { //문자가 성공일경우
         //크래딧  차감, 심과 사용자 매칭, tb_credit_history입력
         sim_data.credit = sim_data.credit - sms_result_data.price
         realm.write(() => {

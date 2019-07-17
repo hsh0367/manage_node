@@ -5,7 +5,7 @@ var addon_child = require('bindings')('addon_child');
 addon_child.setConnect(5555, "127.0.0.1");
 
 let realm = new Realm({
-  path: '/home/ubuntu/manage_node/log/testRealm5.realm',
+  path: '/home/ubuntu/manage_node/object_data_copy_file.realm',
   deleteRealmIfMigrationNeeded: true,
   disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
@@ -16,14 +16,6 @@ var options = {
   encoding: 'utf8',
   flag: 'a'
 };
-// realm.addListener("change", (realm, changes, schema) => {
-//   write_log("realm.change : " + changes)
-//
-//   if (realm.isInTransaction) {
-//     write_log("realm.change isInTransaction")
-//     realm.commitTransaction();
-//   }
-// });
 
 function write_log(data) {
   var dt = new Date();
@@ -37,31 +29,27 @@ process.on('message', (value) => {
   command_classifier(value.data);
 });
 
+//mp command_classifier
 function command_classifier(data) {
   switch (data['data1']) {
-    case 'PAGING': //테이블 체크
-      //call function
+    case 'PAGING':
       console.log("mp_paging ");
       mp_paging(data);
       break;
-    case 'PORT_ARRANGE': //회원가입
-      //call function
+    case 'PORT_ARRANGE':
       console.log("PORT_ARRANGE");
       port_arrange(data);
       break;
-    case 'BALANCE': //테이블 체크
-      //call function
-      console.log("BALANCE ");
+    case 'BALANCE':
+      callnsole.log("BALANCE ");
       sim_balance_check(data);
       break;
-    case 'MSISDN': //테이블 체크
-      //call function
-      console.log("MSISDN ");
+    case 'MSISDN':
+      callnsole.log("MSISDN ");
       sim_msisdn_check(data);
       break;
-    case 'CHARGE': //테이블 체크
-      //call function
-      console.log("CHARGE");
+    case 'CHARGE':
+      callnsole.log("CHARGE");
       sim_charge(data);
       break;
     default:
@@ -69,11 +57,11 @@ function command_classifier(data) {
   }
 }
 
+//페이징 처리하는 함수
 function mp_paging(dictdata) {
 
   // MP|PAGING|SEQ|sim_imsi|tmsi|channel|mi_type|arfcn|cell_id|bsic|
   // MP|PAGING|SEQ|sim_imsi|imei|tmsi|kc|cksn|msisdn|simbank_id|sim_serial_no|lac|channel|mi_type|arfcn|cell_id|bsic|
-  //
   // mi_type : 수신시 지정방법 imsi,tmsi
   // channel : 수신시 channel 정보
 
@@ -156,10 +144,10 @@ function mp_paging(dictdata) {
 
 }
 
+// 아직 당장 필요한 기능이 아니므로 port_arrange 뼈대만 만들어둠
 function port_arrange(dictdata) {
   //IN - MP|PORT_ARRANGE|CON_ID|IMSI|OUTBOUND|CUR_TIME|CALLOUT|/CALLIN|SRART/ANSWER/DROP|
   //OUT - ""
-
   var command_line = dicdata;
   var command = command_line['command'];
   var sub_command = command_line['data1'];
@@ -171,6 +159,7 @@ function port_arrange(dictdata) {
   var call_state = command_line['data7'];
 }
 
+//심잔액체크된 결과값을 받아 realm,MYSQL에 저장을 한다.
 function sim_balance_check(dictdata) {
   //mysql 업데이트 해주어야 한다.
   // MP|BALANCE|conID|IMSI|result|balance|    result  : 1 성공 / 0 -실패 / -1  채널로스 실패
@@ -212,7 +201,7 @@ function sim_balance_check(dictdata) {
   }
 
 }
-
+//value 값이 문자인지 숫자인지 판단하는 함수
 function filterInt(value) {
   // ^(\+)?([0-9]*)$
   if (/^(\+)?([0-9]+|Infinity)$/.test(value))
@@ -220,6 +209,7 @@ function filterInt(value) {
   return NaN;
 }
 
+//심 msisdn(전화번호) 채크를하여 msisdn(전화번호) 저장한다.
 function sim_msisdn_check(dictdata) {
   //mysql 업데이트 해주어야 한다.
   // MP|MSISDN|conID|IMSI|result|MSISDN|    result  : 1 성공 / 0 -실패 / -1  채널로스 실패
@@ -272,6 +262,8 @@ function sim_msisdn_check(dictdata) {
   }
 }
 
+
+//심 충전후 결과를 받아 업데이트한다.
 function sim_charge(dictdata) {
   //mysql 업데이트 해주어야 한다.
   // MP|CHARGE|conID|IMSI|result|충전금액|    result  : 1 성공 / 0 -실패 / -1  채널로스 실패
