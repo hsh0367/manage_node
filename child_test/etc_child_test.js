@@ -1,3 +1,5 @@
+"use strict";
+
 console.log("[ETC] ON")
 var Realm = require('realm');
 const crypto = require('crypto');
@@ -12,7 +14,7 @@ var addon_child = require('bindings')('addon_child');
 addon_child.setConnect(5555, "127.0.0.1");
 
 var config = {
-  connectTimeout : 10000,
+  connectTimeout: 10000,
   host: 'everytt-rds.cf5whdjkixxd.ap-southeast-1.rds.amazonaws.com',
   user: 'everytt',
   password: 'dpqmflTT1#',
@@ -48,6 +50,9 @@ connection.on('error', function(error) {
 
 var simlist = [];
 let realm = new Realm({
+  shouldCompactOnLaunch : ( totalSize , usedSize )=>{
+    return true
+  },
   path: '/home/ubuntu/manage_node/object_data_copy_file.realm',
   deleteRealmIfMigrationNeeded: true,
   disableFormatUpgrade: true,
@@ -60,6 +65,57 @@ var options = {
   flag: 'a'
 };
 
+realm.objects('SIM').addListener((sim, changes) => {
+
+  write_log("objects('SIM').addListener")
+  // 객체가 삽입되면 UI를 갱신합니다.
+  changes.insertions.forEach((index) => {
+    realm.commitTransaction()
+    let insertedSim = sim[index];
+
+  });
+
+  // 객체가 수정되면 UI를 갱신합니다.
+  changes.modifications.forEach((index) => {
+    let modifiedSim = sim[index];
+  });
+});
+
+realm.objects('USER').addListener((user, changes) => {
+
+  write_log("objects('USER').addListener")
+
+  // 객체가 삽입되면 UI를 갱신합니다.
+  changes.insertions.forEach((index) => {
+    realm.commitTransaction()
+
+    let insertedUser = user[index];
+  });
+
+  // 객체가 수정되면 UI를 갱신합니다.
+  changes.modifications.forEach((index) => {
+    let modifiedUser = user[index];
+  });
+});
+
+realm.objects('GLOBALCARRIER').addListener((carrier, changes) => {
+
+  write_log("objects('GLOBALCARRIER').addListener")
+
+  // 객체가 삽입되면 UI를 갱신합니다.
+  changes.insertions.forEach((index) => {
+    realm.commitTransaction()
+    let insertedCarrier = carrier[index];
+
+  });
+
+  // 객체가 수정되면 UI를 갱신합니다.
+  changes.modifications.forEach((index) => {
+    let modifiedCarrier = carrier[index];
+  });
+
+
+});
 
 function write_log(data) {
   var dt = new Date();
@@ -75,7 +131,9 @@ process.on('message', (value) => {
 });
 
 function compactRealm() {
-  if(realm.compact()){
+  console.log("compactRealm")
+    realm.commitTranscation()
+  if (realm.compact()) {
     console.log("compact end")
   }
 }
@@ -246,14 +304,14 @@ function ETC_classifier(data) {
     case 'MSISDN': //심 전화번호 체크
       sim_msisdn_check(data);
       break;
-      case 'COMPACT':
+    case 'COMPACT':
       compactRealm()
       break;
-    // case 'MYSQL': //realm mysql 데이터베이스 동기화
-    //   send_mysql(data);
-    //   break;
+      // case 'MYSQL': //realm mysql 데이터베이스 동기화
+      //   send_mysql(data);
+      //   break;
     case 'ZERO': //심 IMSI 값을 통해 TMSI를 0으로 바꿔주는 함수
-      tmsi_zero();
+      tmsi_zero(data);
       break;
     default:
       console.log(data);
@@ -415,8 +473,8 @@ function DB_synchronization(dictdata) {
                 LUR_time: result[i].lur_time,
                 lur_check_time: result[i].lur_check_time,
                 etc_check_time: result[i].etc_check_time,
-                mp_ip : result[i].mp_ip,
-                mp_port : result[i].mp_port
+                mp_ip: result[i].mp_ip,
+                mp_port: result[i].mp_port
 
               });
 
@@ -822,13 +880,17 @@ function death(dictdata) {
     write_log(" death err: " + err)
   }
 }
-//timsi 값 0로 초기화하는 함수 
-function tmsi_zero(imsi) {
+//timsi 값 0로 초기화하는 함수
+function tmsi_zero(dictdata) {
+  var imsi = dictdata['data2'];
 
   var user_sim_check = 'imsi =  "' + imsi + '"';
   var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
   realm.write(() => {
-
     user_sim_checker[0].tmsi = "0"
   })
+}
+
+function writeCopyToREALM(){
+
 }

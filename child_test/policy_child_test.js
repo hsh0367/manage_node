@@ -11,11 +11,16 @@ addon_child.setConnect(5555, "127.0.0.1");
 // var realm = new Realm(Realm.defaultPath)
 
 let realm = new Realm({
+  shouldCompactOnLaunch: (totalSize, usedSize) => {
+    return true
+  },
   path: '/home/ubuntu/manage_node/object_data_copy_file.realm',
   deleteRealmIfMigrationNeeded: true,
   disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
 });
+
+
 require('date-utils');
 var fs = require('fs');
 var options = {
@@ -30,11 +35,65 @@ function write_log(data) {
   var d = dt.toFormat('YYYY-MM-DD HH24:MI:SS');
   fs.writeFile('./log/child/policy_child_log' + dd + ".txt", '[' + d + ']' + data + '\n', options, function(err) {});
 }
+
+
+realm.objects('SIM').addListener((sim, changes) => {
+
+  write_log("objects('SIM').addListener")
+  // 객체가 삽입되면 UI를 갱신합니다.
+  changes.insertions.forEach((index) => {
+    realm.commitTransaction()
+    let insertedSim = sim[index];
+
+  });
+
+  // 객체가 수정되면 UI를 갱신합니다.
+  changes.modifications.forEach((index) => {
+    let modifiedSim = sim[index];
+  });
+});
+
+realm.objects('USER').addListener((user, changes) => {
+
+  write_log("objects('USER').addListener")
+
+  // 객체가 삽입되면 UI를 갱신합니다.
+  changes.insertions.forEach((index) => {
+    realm.commitTransaction()
+
+    let insertedUser = user[index];
+  });
+
+  // 객체가 수정되면 UI를 갱신합니다.
+  changes.modifications.forEach((index) => {
+    let modifiedUser = user[index];
+  });
+});
+
+realm.objects('GLOBALCARRIER').addListener((carrier, changes) => {
+
+  write_log("objects('GLOBALCARRIER').addListener")
+
+  // 객체가 삽입되면 UI를 갱신합니다.
+  changes.insertions.forEach((index) => {
+    realm.commitTransaction()
+    let insertedCarrier = carrier[index];
+
+  });
+
+  // 객체가 수정되면 UI를 갱신합니다.
+  changes.modifications.forEach((index) => {
+    let modifiedCarrier = carrier[index];
+  });
+
+
+});
+
 process.on('message', (value) => {
   console.log("policy is on");
   var temp = JSON.stringify(value.data);
 
-  write_log("policy recive data"+temp);
+  write_log("policy recive data" + temp);
 
   command_classifier(value.data);
 });
@@ -104,14 +163,16 @@ function user_info(dicdata) {
   //net:other:date|net:other:date|net:other:date|free_receive|use_event|promo_code||
   write_log("user_info : " + dicdata)
 
-  var user_sim_check = 'user_id =  "' + user_id + '" AND user_serial = "' + user_serial + '"';
-  var user_checker = realm.objects('USER').filtered(user_sim_check);
-  var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
+  var user_check = 'user_id =  "' + user_id + '" AND user_serial = "' + user_serial + '"';
+  var user_checker = realm.objects('USER').filtered(user_check);
 
 
 
   if (user_checker.length > 0) {
     var imsi = user_checker[0].user_sim_imsi
+
+    var user_sim_check = 'user_id = "' + user_id + '" AND imsi = "' + imsi + '"';
+    var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
     var credit = user_checker[0].credit
 
     if (user_sim_checker.length > 0) {
@@ -159,7 +220,7 @@ function pad(n, width) {
 
 //회원가입
 function register(dictdata) {
-  write_log("policy_child register on " )
+  write_log("policy_child register on ")
 
   var command_line = dictdata;
   var command = command_line['command'];
@@ -176,7 +237,7 @@ function register(dictdata) {
   if (user_pw == "FACEBOOK" || user_pw.length != 0) { //회원가입이 페이스북으로 진행할경우 비밀번호에 FASCEBOOK 입력
 
 
-    var user_length = realm.objects('USER').sorted('user_pid',true)
+    var user_length = realm.objects('USER').sorted('user_pid', true)
     var user_checker = realm_id_checker.length;
     var user_pid = user_length[0].user_pid + 1;
     var user_serial = "PH01" + pad(user_pid, 15);
@@ -251,20 +312,22 @@ function tt_login(login_data) {
 
 
   write_log("user_checker.length : " + user_checker.length)
-  if (user_checker.length > 0) { //if user is found
+  if (user_checker.length == 1) { //if user is found
     var user_sim_check = 'imsi = "' + login_data.imsi + '" AND user_id =  "' + login_data.user_id + '"';
     var user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
     sim_data.user_serial = user_checker[0].user_serial;
     sim_data.credit = user_checker[0].credit;
     sim_data.join_type = user_checker[0].join_type;
+    write_log("user_sim_checker.length : " + user_sim_checker.length)
+    var match_sim_check = 'user_id = "' + login_data.user_id + '"';
+    var match_sim_checker = realm.objects('SIM').filtered(match_sim_check);
 
-    if (user_sim_checker.length > 0) { //심구매 유저일경우
+
+    if (user_sim_checker.length == 1 & match_sim_checker.length == 1) { //심구매 유저일경우
       sim_data.imsi = user_sim_checker[0].imsi
       sim_data.msisdn = user_sim_checker[0].msisdn
-
       console.log("policy_child login sim  o");
       login_msg(login_data, sim_data);
-
     }
     else { //심구매하지 않는 유저일경우
       write_log("tt_login not found sim : " + login_data.imsi)
@@ -272,8 +335,6 @@ function tt_login(login_data) {
       var mnc = login_data.imsi.slice(3, 5)
       var imei = imeigc.randomIMEI_fullRandom();
 
-      var match_sim_check = 'imsi = "' + login_data.imsi + '"';
-      var match_sim_checker = realm.objects('SIM').filtered(match_sim_check);
 
       if (user_checker[0].user_sim_imsi != login_data.imsi && user_checker[0].user_sim_imsi != '0') {
         var old_sim_check = 'imsi = "' + user_checker[0].user_sim_imsi + '"';
@@ -292,6 +353,7 @@ function tt_login(login_data) {
 
       //매치된 심이 있는지 확인
       if (match_sim_checker.length > 0) {
+
         write_log("match_sim_checker.length : " + match_sim_checker.length)
         realm.write(() => {
           realm.delete(match_sim_checker)
@@ -308,6 +370,9 @@ function tt_login(login_data) {
         });
       }
       else {
+        write_log("match_sim_checker.length : " + match_sim_checker.length)
+
+
         realm.write(() => {
           var SIM = realm.create('SIM', {
             user_id: login_data.user_id,
@@ -645,7 +710,7 @@ function buy_sim(dicdata) {
 
 
 
-    if (user_checker.length > 0 && global_carrier_checker.length >  0) { //사용자 체크
+    if (user_checker.length > 0 && global_carrier_checker.length > 0) { //사용자 체크
 
       sim_data.credit = user_checker[0].credit;
       sim_data.user_pid = user_checker[0].user_pid;

@@ -1,5 +1,6 @@
-console.log("[SMS] ON")
+"use strict";
 
+console.log("[SMS] ON")
 var Realm = require('realm');
 // const chema = require('../realm_test.js')
 const chema = require('../global.js')
@@ -22,10 +23,64 @@ function write_log(data) {
 }
 
 let realm = new Realm({
+  shouldCompactOnLaunch : ( totalSize , usedSize )=>{
+    return true
+  },
   path: '/home/ubuntu/manage_node/object_data_copy_file.realm',
   deleteRealmIfMigrationNeeded: true,
   disableFormatUpgrade: true,
   schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
+});
+realm.objects('SIM').addListener((sim, changes) => {
+
+  write_log("objects('SIM').addListener")
+  // 객체가 삽입되면 UI를 갱신합니다.
+  changes.insertions.forEach((index) => {
+    realm.commitTransaction()
+    let insertedSim = sim[index];
+
+  });
+
+  // 객체가 수정되면 UI를 갱신합니다.
+  changes.modifications.forEach((index) => {
+    let modifiedSim = sim[index];
+  });
+});
+
+realm.objects('USER').addListener((user, changes) => {
+
+  write_log("objects('USER').addListener")
+
+  // 객체가 삽입되면 UI를 갱신합니다.
+  changes.insertions.forEach((index) => {
+    realm.commitTransaction()
+
+    let insertedUser = user[index];
+  });
+
+  // 객체가 수정되면 UI를 갱신합니다.
+  changes.modifications.forEach((index) => {
+    let modifiedUser = user[index];
+  });
+});
+
+realm.objects('GLOBALCARRIER').addListener((carrier, changes) => {
+
+  write_log("objects('GLOBALCARRIER').addListener")
+
+  // 객체가 삽입되면 UI를 갱신합니다.
+  changes.insertions.forEach((index) => {
+    realm.commitTransaction()
+    let insertedCarrier = carrier[index];
+
+  });
+
+  // 객체가 수정되면 UI를 갱신합니다.
+  changes.modifications.forEach((index) => {
+    let modifiedCarrier = carrier[index];
+  });
+
+
 });
 
 var pdu = require('node-pdu');

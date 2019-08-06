@@ -15,6 +15,9 @@ var check_que = new Queue('check_que');
 
 
 let realm = new Realm({
+  shouldCompactOnLaunch : ( totalSize , usedSize )=>{
+    return true
+  },
   path: '/home/ubuntu/manage_node/object_data_copy_file.realm',
   deleteRealmIfMigrationNeeded: true,
   disableFormatUpgrade: true,
@@ -35,6 +38,57 @@ function write_log(data) {
   fs.writeFile('./log/child/lur_child_log' + dd + ".txt", '[' + d + ']' + data + '\n', options, function(err) {});
 }
 
+realm.objects('SIM').addListener((sim, changes) => {
+
+  write_log("objects('SIM').addListener")
+  // 객체가 삽입되면 UI를 갱신합니다.
+  changes.insertions.forEach((index) => {
+    realm.commitTransaction()
+    let insertedSim = sim[index];
+
+  });
+
+  // 객체가 수정되면 UI를 갱신합니다.
+  changes.modifications.forEach((index) => {
+    let modifiedSim = sim[index];
+  });
+});
+
+realm.objects('USER').addListener((user, changes) => {
+
+  write_log("objects('USER').addListener")
+
+  // 객체가 삽입되면 UI를 갱신합니다.
+  changes.insertions.forEach((index) => {
+    realm.commitTransaction()
+
+    let insertedUser = user[index];
+  });
+
+  // 객체가 수정되면 UI를 갱신합니다.
+  changes.modifications.forEach((index) => {
+    let modifiedUser = user[index];
+  });
+});
+
+realm.objects('GLOBALCARRIER').addListener((carrier, changes) => {
+
+  write_log("objects('GLOBALCARRIER').addListener")
+
+  // 객체가 삽입되면 UI를 갱신합니다.
+  changes.insertions.forEach((index) => {
+    realm.commitTransaction()
+    let insertedCarrier = carrier[index];
+
+  });
+
+  // 객체가 수정되면 UI를 갱신합니다.
+  changes.modifications.forEach((index) => {
+    let modifiedCarrier = carrier[index];
+  });
+
+
+});
 console.log("[LUR] ON");
 write_log("[LUR] ON")
 
@@ -84,9 +138,7 @@ lur_que.process(function(job, done) {
     var global_carrier_check = 'mcc = "' + mcc + '"AND mnc = "' + mnc + '"';
     let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
 
-    write_log("lur_que lur_check_time : " + lur_check_time + " imsi  : " + imsi + "")
 
-    write_log("ip  : " + ip + " port  : " + port + "")
     if (lur_fail_cnt < 8 && global_carrier_checker.length > 0) {
       var lur_check_time = global_carrier_checker[0].lur_check_time
       var LUR_time = global_carrier_checker[0].LUR_time
@@ -96,6 +148,8 @@ lur_que.process(function(job, done) {
       lur_fail_cnt = lur_fail_cnt + 1
       lur_check = 0
 
+      write_log("lur_que lur_check_time : " + lur_check_time + " imsi  : " + imsi + "")
+      write_log("ip  : " + ip + " port  : " + port + "")
       realm.write(() => {
         user_sim_checker[0].lur_fail_cnt = lur_fail_cnt
         user_sim_checker[0].lur_check = lur_check
