@@ -6,16 +6,22 @@ const global_value = require('../global_value.js')
 var addon_child = require('bindings')('addon_child');
 addon_child.setConnect(5555, "127.0.0.1");
 
-let realm = new Realm({
-  shouldCompactOnLaunch : ( totalSize , usedSize )=>{
-    return true
-  },
-  inMemory  : true,
-  path: '/home/ubuntu/manage_node/object_data_copy_file.realm',
-  deleteRealmIfMigrationNeeded: true,
-  disableFormatUpgrade: true,
-  schema: [chema.USER_PROMO_TEST, chema.SIM_TEST, chema.USER_TEST, chema.MEDIA_TEST, chema.CONNECTORINFO_TEST, chema.RATE_TEST, chema.GLOBALCARRIER_TEST],
-});
+var hash_test = require('./realm_controller.js');
+var sim_map = hash_test.sim_map;
+var user_map = hash_test.user_map;
+var carrier_map = hash_test.carrier_map;
+var rate_map = hash_test.rate_map;
+
+var Queue = require('bull');
+var RealmQue = new Queue('RealmQue')
+
+function bull_add_data(data) {
+  RealmQue.add({
+    data: data
+  })
+}
+
+
 require('date-utils');
 var fs = require('fs');
 var options = {
@@ -31,58 +37,6 @@ function write_log(data) {
   fs.writeFile('./log/child/policy_child_log' + dd + ".txt", '[' + d + ']' + data + '\n', options, function(err) {});
 }
 
-
-realm.objects('SIM').addListener((sim, changes) => {
-
-  write_log("objects('SIM').addListener")
-  // 객체가 삽입되면 UI를 갱신합니다.
-  changes.insertions.forEach((index) => {
-    realm.commitTransaction()
-    let insertedSim = sim[index];
-
-  });
-
-  // 객체가 수정되면 UI를 갱신합니다.
-  changes.modifications.forEach((index) => {
-    let modifiedSim = sim[index];
-  });
-});
-
-realm.objects('USER').addListener((user, changes) => {
-
-  write_log("objects('USER').addListener")
-
-  // 객체가 삽입되면 UI를 갱신합니다.
-  changes.insertions.forEach((index) => {
-    realm.commitTransaction()
-
-    let insertedUser = user[index];
-  });
-
-  // 객체가 수정되면 UI를 갱신합니다.
-  changes.modifications.forEach((index) => {
-    let modifiedUser = user[index];
-  });
-});
-
-realm.objects('GLOBALCARRIER').addListener((carrier, changes) => {
-
-  write_log("objects('GLOBALCARRIER').addListener")
-
-  // 객체가 삽입되면 UI를 갱신합니다.
-  changes.insertions.forEach((index) => {
-    realm.commitTransaction()
-    let insertedCarrier = carrier[index];
-
-  });
-
-  // 객체가 수정되면 UI를 갱신합니다.
-  changes.modifications.forEach((index) => {
-    let modifiedCarrier = carrier[index];
-  });
-
-
-});
 
 process.on('message', (value) => {
   console.log("mp is on");
@@ -137,40 +91,34 @@ function mp_paging(dictdata) {
   var cell_id = dictdata['data8'];
   var bsic = dictdata['data9'];
 
-
-
-  var user_check = 'user_sim_imsi = "' + sim_imsi + '"';
-
   var now = Date.now();
-  var user_sim_check = 'imsi = "' + sim_imsi + '"'
+
+  var sim_check = sim_map.get(sim_imsi)
 
 
-
-  let user_checker = realm.objects('USER').filtered(user_check);
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
 
 
-  if (user_sim_checker.length > 0) {
-    var imsi = user_sim_checker[0].imsi;
-    var imei = user_sim_checker[0].imei;
-    var tmsi = user_sim_checker[0].tmsi;
-    var kc = user_sim_checker[0].kc;
-    var cksn = user_sim_checker[0].cksn;
-    var msisdn = user_sim_checker[0].msisdn;
-    var sim_id = user_sim_checker[0].sim_id;
-    var sim_serial_no = user_sim_checker[0].sim_serial_no;
-    var lac = user_sim_checker[0].lac;
-    var arfcn = user_sim_checker[0].arfcn;
-    var cell_id = user_sim_checker[0].cell_id;
-    var bsic = user_sim_checker[0].bsic;
+  if (sim_check != "undefined") {
+    var imsi = sim_check.imsi;
+    var imei = sim_check.imei;
+    var tmsi = sim_check.tmsi;
+    var kc = sim_check.kc;
+    var cksn = sim_check.cksn;
+    var msisdn = sim_check.msisdn;
+    var sim_id = sim_check.sim_id;
+    var sim_serial_no = sim_check.sim_serial_no;
+    var lac = sim_check.lac;
+    var arfcn = sim_check.arfcn;
+    var cell_id = sim_check.cell_id;
+    var bsic = sim_check.bsic;
 
     var carrier_id = sim_imsi.slice(0, 5)
-    var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
-    let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+    var carrier_check = carrier_map.get(carrier_id);
 
-    if (global_carrier_checker.length > 0) {
-      var mp_ip = global_carrier_checker[0].mp_ip
-      var mp_port = global_carrier_checker[0].mp_port
+    if (carrier_check != "undefined") {
+      var mp_ip = carrier_check.mp_ip
+      var mp_port = carrier_check.mp_port
 
       var msg = "MP|PAGING|" + seq + "|" + imsi + "|" + imei + "|" + tmsi + "|" + kc + "|" + cksn + "|" + msisdn + "|" + sim_id + "|" + sim_serial_no + "|" + lac + "|" + channel + "|" + mi_type + "|" + arfcn + "|" + cell_id + "|" + bsic + "|"
       process.send({
@@ -185,12 +133,12 @@ function mp_paging(dictdata) {
   else {
 
     var carrier_id = sim_imsi.slice(0, 5)
-    var global_carrier_check = 'carrier_id = "' + carrier_id + '"';
-    let global_carrier_checker = realm.objects('GLOBALCARRIER').filtered(global_carrier_check);
+    var carrier_id = sim_imsi.slice(0, 5)
+    var carrier_check = carrier_map.get(carrier_id);
 
     if (global_carrier_checker.length > 0) {
-      var mp_ip = global_carrier_checker[0].mp_ip
-      var mp_port = global_carrier_checker[0].mp_port
+      var mp_ip = carrier_check.mp_ip
+      var mp_port = carrier_check.mp_port
 
       var msg = "MP|PAGING|" + seq + "|" + sim_imsi + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + 0 + "|" + channel + "|" + mi_type + "|" + 0 + "|" + 0 + "|" + 0 + "|"
       process.send({
@@ -231,18 +179,13 @@ function sim_balance_check(dictdata) {
   var user_sim_check = 'imsi = "' + imsi + '"';
   let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
 
-  console.log(dictdata)
+  var sim_check = sim_map.get(imsi)
 
-  var sim_blance = user_sim_checker[0].sim_blance;
   if (result == 1) {
-    sim_blance = balance
-    if (user_sim_checker.length > 0) {
-      realm.write(() => {
 
-        user_sim_checker[0].sim_balance = sim_blance;
-        user_sim_checker[0].etc_blance_flag = 0;
-
-      })
+    if (sim_check != "undefined") {
+      bull_add_data("REALM|MODIFY|SIM|" + sim_check.imsi + "|imsi = '" + sim_check.imsi + "'|sim_balance|INT|" + balance + "|")
+      bull_add_data("REALM|MODIFY|SIM|" + sim_check.imsi + "|imsi = '" + sim_check.imsi + "'|etc_blance_flag|INT|" + 0 + "|")
       //mysql 업데이트 해주어야 한다.
       var dbmsg = "DB|ETC|BALANCE|" + imsi + "|" + sim_blance + "|";
       addon_child.send_data(dbmsg);
@@ -257,7 +200,6 @@ function sim_balance_check(dictdata) {
     //mysql 실패결과를 업데이트 해주어야 한다.
     var dbmsg = "DB|ETC|ERR|" + imsi + "|7|";
     addon_child.send_data(dbmsg);
-
   }
 
 }
@@ -278,21 +220,21 @@ function sim_msisdn_check(dictdata) {
   var imsi = dictdata['data3']
   var result = dictdata['data4']
   var msisdn = dictdata['data5']
-  var user_sim_check = 'imsi = "' + imsi + '"';
-  let user_sim_checker = realm.objects('SIM').filtered(user_sim_check);
-  // var  country_code_checker= country_code_check(msisdn);
-  var country_check = 'mcc = "' + user_sim_checker[0].mcc + '"';
-  let country_checker = realm.objects('GLOBALCARRIER').filtered(country_check);
-  console.log("aaaaaa - " + msisdn)
+
+
   msisdn = filterInt(msisdn);
-  console.log("ssssss - " + msisdn)
   var msisdn_length = msisdn.length;
 
 
+  var sim_check = sim_map.get(imsi)
+
+  var carrier_id = sim_check.mcc + sim_check.mnc;
+  var carrier_check = carrier_map(carrier_id)
+
   if (msisdn != "0" && msisdn != NaN) {
 
-    if (country_checker.length > 0 && user_sim_checker.length > 0) {
-      var code = country_checker[0].country_code;
+    if (carrier_check != "undefined" && sim_check != "undefined") {
+      var code = carrier_check.country_code;
       msisdn = "0" + msisdn.substring(code.length, msisdn_length)
     }
     else {
@@ -300,11 +242,11 @@ function sim_msisdn_check(dictdata) {
     }
   }
   if (result == 1) {
-    if (user_sim_checker.length > 0) {
-      realm.write(() => {
-        user_sim_checker[0].msisdn = msisdn;
-        user_sim_checker[0].etc_msisdn_flag = 0;
-      })
+    if (sim_check != "undefined") {
+
+      bull_add_data("REALM|MODIFY|SIM|" + sim_check.imsi + "|imsi = '" + sim_check.imsi + "'|msisdn|STRING|" + msisdn + "|")
+      bull_add_data("REALM|MODIFY|SIM|" + sim_check.imsi + "|imsi = '" + sim_check.imsi + "'|etc_msisdn_flag|INT|" + 0 + "|")
+
       //mysql 업데이트 해주어야 한다.
       var dbmsg = "DB|ETC|MSISDN|" + imsi + "|" + msisdn + "|";
       addon_child.send_data(dbmsg);
@@ -334,18 +276,13 @@ function sim_charge(dictdata) {
   var charging_balance = parseInt(dictdata['data5'])
   if (result == 1) {
     if (user_sim_checker.length > 0) {
+      var balance = sim_check.sim_balance + charging_balance
+      bull_add_data("REALM|MODIFY|SIM|" + sim_check.imsi + "|imsi = '" + sim_check.imsi + "'|sim_balance|INT|" + balance + "|")
+      bull_add_data("REALM|MODIFY|SIM|" + sim_check.imsi + "|imsi = '" + sim_check.imsi + "'|etc_charge_flag|INT|" + 0 + "|")
 
-
-      realm.write(() => {
-
-        user_sim_checker[0].sim_balance = user_sim_checker[0].sim_balance + charging_balance;
-        user_sim_checker[0].etc_charge_flag = 0;
-
-      })
       //mysql 업데이트 해주어야 한다.
       var dbmsg = "DB|ETC|CHARGE|" + imsi + "|" + charging_balance + "|";
       addon_child.send_data(dbmsg);
-
     }
     else {
       //imsi is not found
